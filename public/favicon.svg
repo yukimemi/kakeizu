@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="seal" x1="20%" y1="20%" x2="80%" y2="80%">
+      <stop offset="0%" stop-color="#C73B2C"/>
+      <stop offset="60%" stop-color="#A52A1F"/>
+      <stop offset="100%" stop-color="#7A1F17"/>
+    </linearGradient>
+    <filter id="grain">
+      <feTurbulence baseFrequency="1.4" numOctaves="2" seed="3"/>
+      <feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.18 0"/>
+      <feComposite operator="in" in2="SourceGraphic"/>
+    </filter>
+  </defs>
+  <rect width="64" height="64" rx="8" fill="#F2EDE2"/>
+  <rect x="9" y="9" width="46" height="46" rx="5" fill="url(#seal)"/>
+  <rect x="9" y="9" width="46" height="46" rx="5" filter="url(#grain)"/>
+  <text x="32" y="45" font-family="'Shippori Mincho','Yu Mincho',serif" font-size="34" font-weight="700" fill="#F8F3E7" text-anchor="middle">家</text>
+</svg>
