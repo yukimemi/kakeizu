@@ -7,6 +7,7 @@ import {
   updateDoc,
   deleteDoc,
   doc,
+  getDoc,
   serverTimestamp,
   arrayUnion,
   arrayRemove,
@@ -16,6 +17,11 @@ import {
 import { useEffect, useState } from "react";
 import { db } from "../firebase";
 import type { Tree, TreeRole } from "../types";
+import {
+  addAccessGrant,
+  removeAccessGrant,
+  revokeAllGrantsForTree,
+} from "./invites";
 
 const COL = "trees";
 
@@ -79,6 +85,13 @@ export async function createTree(
   };
   if (memberInfoEntry) data.memberInfo = memberInfoEntry;
   const ref = await addDoc(collection(db, COL), data);
+  // Record the creator's grant so allowlist cleanup logic can later revoke
+  // them if every tree they had access to is gone.
+  if (creator?.email) {
+    await addAccessGrant(creator.email, ref.id).catch((e) =>
+      console.warn("[trees] addAccessGrant failed", e),
+    );
+  }
   return ref.id;
 }
 
@@ -95,11 +108,22 @@ export async function addTreeMember(
 }
 
 export async function removeTreeMember(treeId: string, memberUid: string) {
+  // Capture the email (if known) before we remove the entry, so we can
+  // revoke their access grant on this tree.
+  const snap = await getDoc(doc(db, COL, treeId));
+  const data = snap.data() as Tree | undefined;
+  const email = data?.memberInfo?.[memberUid]?.email;
   await updateDoc(doc(db, COL, treeId), {
     memberIds: arrayRemove(memberUid),
     [`memberRoles.${memberUid}`]: deleteField(),
+    [`memberInfo.${memberUid}`]: deleteField(),
     updatedAt: serverTimestamp(),
   });
+  if (email) {
+    await removeAccessGrant(email, treeId).catch((e) =>
+      console.warn("[trees] removeAccessGrant failed", e),
+    );
+  }
 }
 
 export async function setTreeMemberRole(
@@ -151,4 +175,7 @@ export async function deleteTree(treeId: string) {
     ...relsSnap.docs.map((d) => deleteDoc(d.ref)),
   ]);
   await deleteDoc(doc(db, COL, treeId));
+  await revokeAllGrantsForTree(treeId).catch((e) =>
+    console.warn("[trees] revokeAllGrantsForTree failed", e),
+  );
 }

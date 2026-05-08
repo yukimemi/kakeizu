@@ -11,7 +11,8 @@ service cloud.firestore {
       return request.auth != null
         && request.auth.token.email_verified == true
         && exists(/databases/$(database)/documents/config/access)
-        && userEmail() in accessConfig().allowedEmails;
+        && (userEmail() in accessConfig().allowedEmails
+            || userEmail() in accessConfig().get('adminEmails', []));
     }
 
     function treeData(treeId) {
@@ -50,6 +51,13 @@ service cloud.firestore {
     // Access-list: any signed-in user can read so the app can decide what to
     // show; only allowed users can mutate (so invitations grow the list).
     match /config/access {
+      allow read: if request.auth != null;
+      allow write: if isAllowedEmail();
+    }
+
+    // Tracks which trees granted which emails write access. Used to revoke
+    // allowlist entries when the last granting tree is removed.
+    match /config/accessGrants {
       allow read: if request.auth != null;
       allow write: if isAllowedEmail();
     }
