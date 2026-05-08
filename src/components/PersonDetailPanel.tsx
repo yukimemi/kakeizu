@@ -1,0 +1,312 @@
+import { useState } from "react";
+import type { Person, Relationship } from "../types";
+import { PersonForm } from "./PersonForm";
+import { deletePerson, updatePerson } from "../data/persons";
+import {
+  createRelationship,
+  deleteRelationship,
+  deleteRelationshipsFor,
+} from "../data/relationships";
+
+type Props = {
+  treeId: string;
+  person: Person;
+  allPersons: Person[];
+  relationships: Relationship[];
+  canEdit: boolean;
+  onClose: () => void;
+};
+
+export function PersonDetailPanel({
+  treeId,
+  person,
+  allPersons,
+  relationships,
+  canEdit,
+  onClose,
+}: Props) {
+  const [tab, setTab] = useState<"info" | "relations">("info");
+
+  const parents = relationships
+    .filter((r) => r.type === "parent" && r.to === person.id)
+    .map((r) => ({
+      rel: r,
+      person: allPersons.find((p) => p.id === r.from),
+    }))
+    .filter((x) => x.person);
+  const children = relationships
+    .filter((r) => r.type === "parent" && r.from === person.id)
+    .map((r) => ({
+      rel: r,
+      person: allPersons.find((p) => p.id === r.to),
+    }))
+    .filter((x) => x.person);
+  const spouses = relationships
+    .filter(
+      (r) => r.type === "spouse" && (r.from === person.id || r.to === person.id),
+    )
+    .map((r) => ({
+      rel: r,
+      person: allPersons.find(
+        (p) => p.id === (r.from === person.id ? r.to : r.from),
+      ),
+    }))
+    .filter((x) => x.person);
+
+  const handleDelete = async () => {
+    if (
+      !confirm(
+        `${person.lastName} ${person.firstName} を削除しますか？\n関連する繋がりもすべて削除されます。`,
+      )
+    )
+      return;
+    await deleteRelationshipsFor(treeId, person.id);
+    await deletePerson(person.id);
+    onClose();
+  };
+
+  return (
+    <aside className="absolute inset-0 z-20 flex h-full w-full flex-none animate-fade-in flex-col border-l border-ink-line bg-paper shadow-paper-lg sm:relative sm:inset-auto sm:w-[400px]">
+      <div className="flex items-center justify-between border-b border-ink-line px-5 py-4">
+        <div>
+          <div className="text-[10px] uppercase tracking-widest2 text-ink-faint">
+            人物
+          </div>
+          <div className="font-mincho text-lg font-semibold tracking-wider text-ink">
+            {person.lastName} {person.firstName}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-md p-1.5 text-ink-mute transition hover:bg-washi-warm hover:text-ink"
+          aria-label="閉じる"
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M18 6L6 18M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <nav className="flex border-b border-ink-line bg-washi-warm/30 text-sm">
+        {(
+          [
+            ["info", "情報"],
+            ["relations", "つながり"],
+          ] as const
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setTab(key)}
+            className={`relative flex-1 py-3 font-mincho tracking-wider transition ${
+              tab === key
+                ? "text-ink"
+                : "text-ink-mute hover:bg-washi-warm hover:text-ink-soft"
+            }`}
+          >
+            {label}
+            {tab === key && (
+              <span className="absolute inset-x-6 -bottom-px h-0.5 bg-shu" />
+            )}
+          </button>
+        ))}
+      </nav>
+
+      <div className="flex-1 overflow-y-auto px-5 py-5">
+        {/* Both tabs stay mounted so unsaved form edits survive a tab switch.
+            CSS hides the inactive one. The form remounts only when the
+            selected person changes (via key={person.id}). */}
+        <div className={tab === "info" ? "" : "hidden"}>
+          <PersonForm
+            key={person.id}
+            treeId={treeId}
+            initial={person}
+            submitLabel="保存"
+            readOnly={!canEdit}
+            onSubmit={async (values) => {
+              await updatePerson(person.id, values);
+            }}
+          />
+        </div>
+        <div className={tab === "relations" ? "" : "hidden"}>
+          <RelationsTab
+            treeId={treeId}
+            person={person}
+            allPersons={allPersons}
+            parents={parents}
+            children={children}
+            spouses={spouses}
+            canEdit={canEdit}
+          />
+        </div>
+      </div>
+
+      {canEdit && (
+        <div className="border-t border-ink-line bg-washi-warm/40 px-5 py-3">
+          <button
+            type="button"
+            onClick={() => void handleDelete()}
+            className="w-full rounded-md border border-shu/25 bg-shu-soft/30 py-2 text-sm font-medium tracking-wider2 text-shu-deep transition hover:border-shu/40 hover:bg-shu-soft/50"
+          >
+            この人物を削除
+          </button>
+        </div>
+      )}
+    </aside>
+  );
+}
+
+function RelationsTab({
+  treeId,
+  person,
+  allPersons,
+  parents,
+  children,
+  spouses,
+  canEdit,
+}: {
+  treeId: string;
+  person: Person;
+  allPersons: Person[];
+  parents: { rel: Relationship; person?: Person }[];
+  children: { rel: Relationship; person?: Person }[];
+  spouses: { rel: Relationship; person?: Person }[];
+  canEdit: boolean;
+}) {
+  const candidates = allPersons.filter((p) => p.id !== person.id);
+
+  const addParent = (id: string) =>
+    createRelationship(treeId, "parent", id, person.id);
+  const addChild = (id: string) =>
+    createRelationship(treeId, "parent", person.id, id);
+  const addSpouse = (id: string) =>
+    createRelationship(treeId, "spouse", person.id, id);
+
+  return (
+    <div className="flex flex-col gap-6">
+      {canEdit && (
+        <p className="border-l-2 border-shu/40 bg-shu-soft/15 px-3 py-2 text-xs leading-5 text-ink-soft">
+          プルダウンから人を選ぶと即追加されます。
+        </p>
+      )}
+      <Section
+        title="親"
+        items={parents}
+        candidates={candidates.filter(
+          (c) => !parents.some((p) => p.person?.id === c.id),
+        )}
+        onAdd={addParent}
+        addLabel="+ 親を追加"
+        canEdit={canEdit}
+      />
+      <Section
+        title="配偶者"
+        items={spouses}
+        candidates={candidates.filter(
+          (c) => !spouses.some((s) => s.person?.id === c.id),
+        )}
+        onAdd={addSpouse}
+        addLabel="+ 配偶者を追加"
+        canEdit={canEdit}
+      />
+      <Section
+        title="子"
+        items={children}
+        candidates={candidates.filter(
+          (c) => !children.some((ch) => ch.person?.id === c.id),
+        )}
+        onAdd={addChild}
+        addLabel="+ 子を追加"
+        canEdit={canEdit}
+      />
+    </div>
+  );
+}
+
+function Section({
+  title,
+  items,
+  candidates,
+  onAdd,
+  addLabel,
+  canEdit,
+}: {
+  title: string;
+  items: { rel: Relationship; person?: Person }[];
+  candidates: Person[];
+  onAdd: (id: string) => Promise<unknown>;
+  addLabel: string;
+  canEdit: boolean;
+}) {
+  return (
+    <div>
+      <div className="mb-2 flex items-center gap-2">
+        <span className="h-px flex-none w-4 bg-ink-line" />
+        <div className="font-mincho text-sm font-semibold tracking-wider text-ink-soft">
+          {title}
+        </div>
+        <span className="h-px flex-1 bg-ink-line" />
+      </div>
+      {items.length === 0 ? (
+        <div className="mb-2 text-xs italic text-ink-faint">なし</div>
+      ) : (
+        <ul className="mb-2 flex flex-col gap-1">
+          {items.map((it) => (
+            <li
+              key={it.rel.id}
+              className="flex items-center justify-between rounded-md border border-ink-line/60 bg-paper px-3 py-2 text-sm transition hover:border-ink-line"
+            >
+              <span className="truncate font-mincho text-ink">
+                {it.person?.lastName} {it.person?.firstName}
+              </span>
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={() => void deleteRelationship(it.rel.id)}
+                  className="text-[11px] text-shu hover:text-shu-deep hover:underline"
+                >
+                  外す
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {canEdit &&
+        (candidates.length > 0 ? (
+          <select
+            value=""
+            onChange={(e) => {
+              const id = e.target.value;
+              if (!id) return;
+              void onAdd(id);
+              // reset to placeholder for the next pick
+              e.target.value = "";
+            }}
+            className="input w-full"
+          >
+            <option value="">{addLabel}</option>
+            {candidates.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.lastName} {c.firstName}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <div className="text-xs italic text-ink-faint">
+            追加できる人がいません
+          </div>
+        ))}
+    </div>
+  );
+}

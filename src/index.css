@@ -1,0 +1,144 @@
+@import "@xyflow/react/dist/style.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  @apply bg-washi text-ink;
+  font-family:
+    "Noto Sans JP", "Inter", -apple-system, "Segoe UI",
+    "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Meiryo", sans-serif;
+  font-feature-settings:
+    "palt" 1,
+    "ss01" 1;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Subtle washi paper grain over everything. Pointer-events: none so it
+   doesn't interfere with interactions. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 240 240' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.10 0 0 0 0 0.09 0 0 0 0 0.08 0 0 0 0.05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' /%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.7;
+  mix-blend-mode: multiply;
+}
+
+/* Application root sits above the noise overlay */
+#root {
+  position: relative;
+  z-index: 2;
+}
+
+@layer components {
+  /* Refined ink-on-paper input */
+  .input {
+    @apply w-full rounded-md border border-ink-line bg-white/85 px-3 py-2 text-sm text-ink outline-none transition placeholder:text-ink-faint;
+  }
+  .input:focus {
+    @apply border-ink/70 bg-white;
+    box-shadow: 0 0 0 3px rgba(26, 23, 22, 0.06);
+  }
+  .input:disabled {
+    @apply cursor-not-allowed bg-washi-deep/40 text-ink-mute;
+  }
+
+  /* Primary inkstone-black button */
+  .btn-ink {
+    @apply inline-flex items-center justify-center gap-2 rounded-md bg-ink px-4 py-2 text-sm font-medium tracking-wider2 text-washi-warm shadow-ink-soft transition;
+  }
+  .btn-ink:hover {
+    @apply bg-ink-soft;
+  }
+  .btn-ink:disabled {
+    @apply cursor-not-allowed opacity-40;
+  }
+
+  /* Vermillion seal-like accent button */
+  .btn-shu {
+    @apply inline-flex items-center justify-center gap-2 rounded-md bg-shu px-4 py-2 text-sm font-medium tracking-wider2 text-paper shadow-seal transition;
+  }
+  .btn-shu:hover {
+    @apply bg-shu-bright shadow-seal-active;
+  }
+  .btn-shu:disabled {
+    @apply cursor-not-allowed opacity-40;
+  }
+
+  /* Hairline outline button */
+  .btn-line {
+    @apply inline-flex items-center justify-center gap-2 rounded-md border border-ink-line bg-paper px-3 py-1.5 text-sm text-ink-soft transition;
+  }
+  .btn-line:hover {
+    @apply border-ink/60 text-ink;
+  }
+  .btn-line:disabled {
+    @apply cursor-not-allowed opacity-40;
+  }
+
+  /* Tiny vermillion seal/stamp marker — used as a brand accent next to
+     the 家系図 wordmark, on tree-owner badges, etc. */
+  .seal {
+    @apply inline-flex items-center justify-center font-mincho text-paper;
+    background: linear-gradient(135deg, #c73b2c, #a52a1f 60%, #7a1f17);
+    box-shadow:
+      inset 0 0 0 1px rgba(0, 0, 0, 0.08),
+      inset 0 -2px 4px rgba(0, 0, 0, 0.15),
+      0 2px 6px -2px rgba(165, 42, 31, 0.4);
+  }
+}
+
+/* React Flow customizations to fit the heritage theme */
+
+/* Force-visible since we set explicit width/height — see project memory:
+   feedback_react_flow_v12_invisible_nodes */
+.react-flow__node {
+  visibility: visible !important;
+}
+
+/* Replace the bright default control buttons with a refined ink set */
+.react-flow__controls {
+  box-shadow: 0 4px 16px -4px rgba(26, 23, 22, 0.12) !important;
+  border: 1px solid theme("colors.ink.line") !important;
+  background: theme("colors.paper") !important;
+  border-radius: 0.5rem !important;
+  overflow: hidden !important;
+}
+.react-flow__controls-button {
+  background: theme("colors.paper") !important;
+  border-bottom: 1px solid theme("colors.ink.line") !important;
+  fill: theme("colors.ink.soft") !important;
+  color: theme("colors.ink.soft") !important;
+  width: 32px !important;
+  height: 32px !important;
+}
+.react-flow__controls-button:hover {
+  background: theme("colors.washi.warm") !important;
+  fill: theme("colors.ink.DEFAULT") !important;
+}
+
+/* Minimap subtle paper feel */
+.react-flow__minimap {
+  background: theme("colors.paper") !important;
+  border: 1px solid theme("colors.ink.line") !important;
+  border-radius: 0.5rem !important;
+  overflow: hidden !important;
+}
+
+/* Background dot grid in muted ink color */
+.react-flow__background-pattern {
+  fill: theme("colors.ink.hair") !important;
+}
