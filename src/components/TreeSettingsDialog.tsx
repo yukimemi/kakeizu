@@ -1,59 +1,64 @@
 import { useState } from "react";
 import {
-  addTreeMember,
   removeTreeMember,
   setTreeMemberRole,
   updateTreeName,
   deleteTree,
 } from "../data/trees";
+import { inviteByEmail, cancelEmailInvite } from "../data/invites";
 import type { Tree, TreeRole } from "../types";
 
 type Props = {
   tree: Tree;
   uid: string;
+  myEmail: string | null | undefined;
   onClose: () => void;
 };
 
-export function TreeSettingsDialog({ tree, uid, onClose }: Props) {
+export function TreeSettingsDialog({ tree, uid, myEmail, onClose }: Props) {
   const myRole = tree.memberRoles?.[uid];
   const isOwner = myRole === "owner";
   const [name, setName] = useState(tree.name);
-  const [newMemberCode, setNewMemberCode] = useState("");
+  const [newInviteEmail, setNewInviteEmail] = useState("");
+  const [newInviteRole, setNewInviteRole] = useState<TreeRole>("editor");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [copied, setCopied] = useState(false);
 
-  const onCopyCode = async () => {
-    try {
-      await navigator.clipboard.writeText(uid);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      // ignore
-    }
-  };
-
-  const onAddMember = async () => {
+  const onAddInvite = async () => {
     setError(null);
-    const code = newMemberCode.trim();
-    if (!code) return;
-    if (code === uid) {
-      setError("自分のコードは追加できません");
+    const email = newInviteEmail.trim().toLowerCase();
+    if (!email || !email.includes("@")) {
+      setError("メールアドレスの形式が正しくありません");
       return;
     }
-    if (tree.memberIds.includes(code)) {
-      setError("既にメンバーです");
+    if (myEmail && email === myEmail.toLowerCase()) {
+      setError("自分のメールアドレスは追加できません");
+      return;
+    }
+    if (
+      tree.invitedEmails?.includes(email) ||
+      Object.values(tree.memberInfo ?? {}).some(
+        (i) => i.email?.toLowerCase() === email,
+      )
+    ) {
+      setError("既に招待または参加済みです");
       return;
     }
     setBusy(true);
     try {
-      await addTreeMember(tree.id, code, "editor");
-      setNewMemberCode("");
+      await inviteByEmail(tree.id, email, newInviteRole);
+      setNewInviteEmail("");
+      setNewInviteRole("editor");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
+  };
+
+  const onCancelInvite = async (email: string) => {
+    if (!confirm(`${email} の招待を取り消しますか？`)) return;
+    await cancelEmailInvite(tree.id, email);
   };
 
   const onRemoveMember = async (memberUid: string) => {
@@ -90,6 +95,18 @@ export function TreeSettingsDialog({ tree, uid, onClose }: Props) {
     } finally {
       setBusy(false);
     }
+  };
+
+  const memberLabel = (memberUid: string): { primary: string; secondary?: string } => {
+    const info = tree.memberInfo?.[memberUid];
+    if (info?.email) {
+      return {
+        primary: info.email,
+        secondary: info.displayName || undefined,
+      };
+    }
+    if (info?.displayName) return { primary: info.displayName, secondary: memberUid };
+    return { primary: memberUid };
   };
 
   return (
@@ -151,35 +168,10 @@ export function TreeSettingsDialog({ tree, uid, onClose }: Props) {
             </div>
           </section>
 
-          {/* My share code */}
-          <section className="mb-7">
-            <label className="mb-2 block text-[10px] font-medium uppercase tracking-widest2 text-ink-mute">
-              あなたのシェアコード
-            </label>
-            <p className="mb-2 text-[11px] leading-5 text-ink-mute">
-              他の家系図に招待してもらうとき、オーナーにこのコードを伝えてください。
-            </p>
-            <div className="flex gap-2">
-              <input
-                value={uid}
-                readOnly
-                className="input flex-1 font-mono text-xs"
-                onClick={(e) => (e.target as HTMLInputElement).select()}
-              />
-              <button
-                type="button"
-                onClick={() => void onCopyCode()}
-                className="btn-line"
-              >
-                {copied ? "✓ コピー済" : "コピー"}
-              </button>
-            </div>
-          </section>
-
           {/* Members */}
           <section className="mb-7">
             <div className="mb-3 flex items-center gap-2">
-              <span className="h-px flex-none w-4 bg-ink-line" />
+              <span className="h-px w-4 flex-none bg-ink-line" />
               <h3 className="font-mincho text-sm font-semibold tracking-wider text-ink-soft">
                 メンバー
               </h3>
@@ -198,19 +190,27 @@ export function TreeSettingsDialog({ tree, uid, onClose }: Props) {
                     : role === "viewer"
                       ? "閲覧者"
                       : "編集者";
+                const label = memberLabel(mUid);
                 return (
                   <li
                     key={mUid}
                     className="flex items-center gap-2 rounded-md border border-ink-line/60 bg-paper px-3 py-2 text-sm"
                   >
-                    <span className="flex-1 truncate font-mono text-[11px] text-ink-soft">
-                      {mUid}
-                      {isMe && (
-                        <span className="ml-2 inline-flex items-center rounded-sm bg-shu-soft/40 px-1.5 py-0.5 font-sans text-[10px] tracking-wider2 text-shu-deep">
-                          あなた
-                        </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="truncate text-sm text-ink">
+                        {label.primary}
+                        {isMe && (
+                          <span className="ml-2 inline-flex items-center rounded-sm bg-shu-soft/40 px-1.5 py-0.5 font-sans text-[10px] tracking-wider2 text-shu-deep">
+                            あなた
+                          </span>
+                        )}
+                      </div>
+                      {label.secondary && (
+                        <div className="truncate font-mincho text-[11px] text-ink-mute">
+                          {label.secondary}
+                        </div>
                       )}
-                    </span>
+                    </div>
                     {isOwner && !isMe && mUid !== tree.ownerId ? (
                       <select
                         value={role}
@@ -241,25 +241,80 @@ export function TreeSettingsDialog({ tree, uid, onClose }: Props) {
                 );
               })}
             </ul>
+
+            {/* Pending email invites */}
+            {tree.invitedEmails && tree.invitedEmails.length > 0 && (
+              <>
+                <div className="mb-2 mt-4 text-[10px] font-medium uppercase tracking-widest2 text-ink-mute">
+                  招待中
+                </div>
+                <ul className="mb-4 flex flex-col gap-1.5">
+                  {tree.invitedEmails.map((email) => {
+                    const role = tree.pendingRoles?.[email] ?? "editor";
+                    const roleLabel =
+                      role === "owner"
+                        ? "オーナー"
+                        : role === "viewer"
+                          ? "閲覧者"
+                          : "編集者";
+                    return (
+                      <li
+                        key={email}
+                        className="flex items-center gap-2 rounded-md border border-dashed border-ink-line/80 bg-washi-warm/40 px-3 py-2 text-sm"
+                      >
+                        <span className="flex-1 truncate text-ink-soft">
+                          {email}
+                        </span>
+                        <span className="rounded-sm bg-washi-deep/50 px-1.5 py-0.5 text-[10px] tracking-wider2 text-ink-soft">
+                          {roleLabel}
+                        </span>
+                        {isOwner && (
+                          <button
+                            type="button"
+                            onClick={() => void onCancelInvite(email)}
+                            className="text-[11px] text-shu hover:text-shu-deep hover:underline"
+                          >
+                            取消
+                          </button>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
+            )}
+
             {isOwner && (
               <div className="rounded-md border border-ink-line/60 bg-washi-warm/40 p-3">
                 <label className="mb-2 block text-[10px] font-medium uppercase tracking-widest2 text-ink-mute">
-                  メンバー追加
+                  メンバーを招待
                 </label>
                 <p className="mb-2 text-[11px] leading-5 text-ink-mute">
-                  招待したい相手のシェアコードを貼り付け
+                  Google アカウントのメールアドレスを入力してください。次回そのメールでサインインすると自動的にメンバーになります。
                 </p>
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row">
                   <input
-                    value={newMemberCode}
-                    onChange={(e) => setNewMemberCode(e.target.value)}
-                    placeholder="相手のシェアコード"
-                    className="input flex-1 font-mono text-xs"
+                    type="email"
+                    value={newInviteEmail}
+                    onChange={(e) => setNewInviteEmail(e.target.value)}
+                    placeholder="example@gmail.com"
+                    className="input flex-1"
                   />
+                  <select
+                    value={newInviteRole}
+                    onChange={(e) =>
+                      setNewInviteRole(e.target.value as TreeRole)
+                    }
+                    className="input sm:w-28"
+                  >
+                    <option value="viewer">閲覧者</option>
+                    <option value="editor">編集者</option>
+                    <option value="owner">オーナー</option>
+                  </select>
                   <button
                     type="button"
-                    onClick={() => void onAddMember()}
-                    disabled={busy || !newMemberCode.trim()}
+                    onClick={() => void onAddInvite()}
+                    disabled={busy || !newInviteEmail.trim()}
                     className="btn-shu !py-2"
                   >
                     招待
@@ -277,7 +332,7 @@ export function TreeSettingsDialog({ tree, uid, onClose }: Props) {
           {isOwner && (
             <section className="border-t border-ink-line/60 pt-5">
               <div className="mb-3 flex items-center gap-2">
-                <span className="h-px flex-none w-4 bg-shu/40" />
+                <span className="h-px w-4 flex-none bg-shu/40" />
                 <h3 className="font-mincho text-sm font-semibold tracking-wider text-shu-deep">
                   危険ゾーン
                 </h3>

@@ -2,12 +2,19 @@ export type Gender = "male" | "female" | "other";
 
 export type TreeRole = "owner" | "editor" | "viewer";
 
+export type MemberInfo = { email?: string; displayName?: string };
+
 export type Tree = {
   id: string;
   name: string;
   ownerId: string; // creator (also has owner role)
   memberIds: string[]; // for `array-contains` queries
   memberRoles: Record<string, TreeRole>;
+  // Email-based pending invites — claimed by the invitee at sign-in.
+  invitedEmails?: string[]; // for `array-contains` queries
+  pendingRoles?: Record<string, TreeRole>; // email → role
+  // Cached identity info for member display (uid → { email, displayName }).
+  memberInfo?: Record<string, MemberInfo>;
   createdAt?: number;
   updatedAt?: number;
 };

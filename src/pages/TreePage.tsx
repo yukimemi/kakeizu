@@ -105,7 +105,10 @@ function TreePageInner() {
     if (autoCreateAttempted.current) return;
     autoCreateAttempted.current = true;
     setCurrentTreeId(null);
-    createTree(uid, "わたしの家系図").catch((e) => {
+    createTree(uid, "わたしの家系図", {
+      email: user!.email,
+      displayName: user!.displayName,
+    }).catch((e) => {
       console.error("[trees] auto-create failed", e);
       setAutoCreateError(e instanceof Error ? e.message : String(e));
       autoCreateAttempted.current = false;
@@ -488,7 +491,10 @@ function TreePageInner() {
         onCreateTree={async () => {
           const name = prompt("新しい家系図の名前", "新しい家系図");
           if (!name?.trim()) return;
-          const id = await createTree(uid, name.trim());
+          const id = await createTree(uid, name.trim(), {
+            email: user!.email,
+            displayName: user!.displayName,
+          });
           setCurrentTreeId(id);
         }}
         onOpenSettings={() => setShowSettings(true)}
@@ -542,6 +548,7 @@ function TreePageInner() {
         <TreeSettingsDialog
           tree={currentTree}
           uid={uid}
+          myEmail={user?.email}
           onClose={() => setShowSettings(false)}
         />
       )}

@@ -15,6 +15,8 @@ import {
   type User,
 } from "firebase/auth";
 import { auth, googleProvider } from "../firebase";
+import { syncUserDoc } from "../data/users";
+import { claimEmailInvites } from "../data/invites";
 
 type AuthCtx = {
   user: User | null;
@@ -38,6 +40,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return onAuthStateChanged(auth, (u) => {
       setUser(u);
       setLoading(false);
+      // Side effects on sign-in: keep users/{uid} fresh, and consume any
+      // pending email-based invites so the user appears in the trees they
+      // were invited to.
+      if (u) {
+        void syncUserDoc(u).catch((e) =>
+          console.warn("[users] sync failed", e),
+        );
+        void claimEmailInvites(u).catch((e) =>
+          console.warn("[invites] claim failed", e),
+        );
+      }
     });
   }, []);
 

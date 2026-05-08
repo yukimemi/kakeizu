@@ -55,15 +55,30 @@ export function useTrees(uid: string | undefined) {
   return { trees, loading };
 }
 
-export async function createTree(uid: string, name: string): Promise<string> {
-  const ref = await addDoc(collection(db, COL), {
+export async function createTree(
+  uid: string,
+  name: string,
+  creator?: { email?: string | null; displayName?: string | null },
+): Promise<string> {
+  const memberInfoEntry =
+    creator && (creator.email || creator.displayName)
+      ? {
+          [uid]: {
+            email: creator.email ?? "",
+            displayName: creator.displayName ?? "",
+          },
+        }
+      : undefined;
+  const data: Record<string, unknown> = {
     name,
     ownerId: uid,
     memberIds: [uid],
     memberRoles: { [uid]: "owner" satisfies TreeRole },
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
-  });
+  };
+  if (memberInfoEntry) data.memberInfo = memberInfoEntry;
+  const ref = await addDoc(collection(db, COL), data);
   return ref.id;
 }
 
