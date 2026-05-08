@@ -61,6 +61,15 @@ service cloud.firestore {
       allow create, update: if request.auth != null && request.auth.uid == uid;
     }
 
+    // Members may rewrite their own identity cache (memberInfo) so display
+    // names / emails stay current without involving the owner.
+    function isSelfInfoUpdate(treeId) {
+      return request.auth != null
+        && request.auth.uid in resource.data.memberIds
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['memberInfo', 'updatedAt']);
+    }
+
     match /trees/{treeId} {
       allow read: if request.auth != null
         && (request.auth.uid in resource.data.memberIds
@@ -70,7 +79,9 @@ service cloud.firestore {
         && request.resource.data.ownerId == request.auth.uid
         && request.auth.uid in request.resource.data.memberIds
         && request.resource.data.memberRoles[request.auth.uid] == 'owner';
-      allow update: if isOwner(treeId) || isClaiming(treeId);
+      allow update: if isOwner(treeId)
+        || isClaiming(treeId)
+        || isSelfInfoUpdate(treeId);
       allow delete: if isOwner(treeId);
     }
 

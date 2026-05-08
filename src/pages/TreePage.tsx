@@ -13,7 +13,7 @@ import {
   type NodeMouseHandler,
 } from "@xyflow/react";
 import { useAuth } from "../auth/AuthContext";
-import { useTrees, createTree } from "../data/trees";
+import { useTrees, createTree, backfillSelfMemberInfo } from "../data/trees";
 import { usePersons, createPerson } from "../data/persons";
 import { useRelationships, deleteRelationship } from "../data/relationships";
 import {
@@ -131,6 +131,24 @@ function TreePageInner() {
   const currentTree = trees.find((t) => t.id === currentTreeId) ?? null;
   const myRole = currentTree?.memberRoles?.[uid];
   const canEdit = myRole === "owner" || myRole === "editor";
+
+  // Backfill our own memberInfo entry so older trees (created before the
+  // email-invite feature) display the email/displayName instead of a uid.
+  useEffect(() => {
+    if (!currentTree || !user?.email) return;
+    const cur = currentTree.memberInfo?.[uid];
+    const wantedEmail = user.email;
+    const wantedName = user.displayName ?? "";
+    if (cur?.email === wantedEmail && cur?.displayName === wantedName) return;
+    void backfillSelfMemberInfo(
+      currentTree.id,
+      uid,
+      wantedEmail,
+      wantedName,
+    ).catch((e) =>
+      console.warn("[trees] memberInfo backfill failed", e),
+    );
+  }, [currentTree, uid, user]);
 
   useEffect(() => {
     if (didFitRef.current) return;

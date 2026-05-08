@@ -120,6 +120,18 @@ export async function updateTreeName(treeId: string, name: string) {
   });
 }
 
+export async function backfillSelfMemberInfo(
+  treeId: string,
+  uid: string,
+  email: string,
+  displayName: string,
+) {
+  await updateDoc(doc(db, COL, treeId), {
+    [`memberInfo.${uid}`]: { email, displayName },
+    updatedAt: serverTimestamp(),
+  });
+}
+
 export async function deleteTree(treeId: string) {
   // Cascade delete persons + relationships first
   const personsQ = query(

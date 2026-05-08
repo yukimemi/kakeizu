@@ -194,35 +194,33 @@ export function TreeSettingsDialog({ tree, uid, myEmail, onClose }: Props) {
                 return (
                   <li
                     key={mUid}
-                    className="flex flex-col gap-2 rounded-md border border-ink-line/60 bg-paper px-3 py-2 text-sm"
+                    className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-ink-line/60 bg-paper px-3 py-2 text-sm"
                   >
-                    {/* Identity row — email + 'you' badge */}
-                    <div className="flex min-w-0 items-center gap-2">
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm text-ink">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate text-sm text-ink">
                           {label.primary}
-                        </div>
-                        {label.secondary && (
-                          <div className="truncate font-mincho text-[11px] text-ink-mute">
-                            {label.secondary}
-                          </div>
+                        </span>
+                        {isMe && (
+                          <span className="flex-none rounded-sm bg-shu-soft/40 px-1.5 py-0.5 text-[10px] tracking-wider2 text-shu-deep">
+                            あなた
+                          </span>
                         )}
                       </div>
-                      {isMe && (
-                        <span className="flex-none rounded-sm bg-shu-soft/40 px-1.5 py-0.5 text-[10px] tracking-wider2 text-shu-deep">
-                          あなた
-                        </span>
+                      {label.secondary && (
+                        <div className="truncate font-mincho text-[11px] text-ink-mute">
+                          {label.secondary}
+                        </div>
                       )}
                     </div>
-                    {/* Role + actions row */}
-                    <div className="flex items-center justify-end gap-2">
+                    <div className="ml-auto flex flex-none items-center gap-2">
                       {isOwner && !isMe && mUid !== tree.ownerId ? (
                         <select
                           value={role}
                           onChange={(e) =>
                             void onChangeRole(mUid, e.target.value as TreeRole)
                           }
-                          className="input !py-1 !text-[11px] !w-auto"
+                          className="input !w-auto !py-1 !text-[11px]"
                         >
                           <option value="viewer">閲覧者</option>
                           <option value="editor">編集者</option>
