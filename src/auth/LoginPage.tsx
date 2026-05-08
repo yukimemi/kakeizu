@@ -12,7 +12,8 @@ export function LoginPage() {
     try {
       await signIn();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      const code = (e as { code?: string }).code ?? "";
+      setError(`${code || "error"}: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBusy(false);
     }
