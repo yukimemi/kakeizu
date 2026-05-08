@@ -194,49 +194,55 @@ export function TreeSettingsDialog({ tree, uid, myEmail, onClose }: Props) {
                 return (
                   <li
                     key={mUid}
-                    className="flex items-center gap-2 rounded-md border border-ink-line/60 bg-paper px-3 py-2 text-sm"
+                    className="flex flex-col gap-2 rounded-md border border-ink-line/60 bg-paper px-3 py-2 text-sm"
                   >
-                    <div className="flex-1 min-w-0">
-                      <div className="truncate text-sm text-ink">
-                        {label.primary}
-                        {isMe && (
-                          <span className="ml-2 inline-flex items-center rounded-sm bg-shu-soft/40 px-1.5 py-0.5 font-sans text-[10px] tracking-wider2 text-shu-deep">
-                            あなた
-                          </span>
+                    {/* Identity row — email + 'you' badge */}
+                    <div className="flex min-w-0 items-center gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm text-ink">
+                          {label.primary}
+                        </div>
+                        {label.secondary && (
+                          <div className="truncate font-mincho text-[11px] text-ink-mute">
+                            {label.secondary}
+                          </div>
                         )}
                       </div>
-                      {label.secondary && (
-                        <div className="truncate font-mincho text-[11px] text-ink-mute">
-                          {label.secondary}
-                        </div>
+                      {isMe && (
+                        <span className="flex-none rounded-sm bg-shu-soft/40 px-1.5 py-0.5 text-[10px] tracking-wider2 text-shu-deep">
+                          あなた
+                        </span>
                       )}
                     </div>
-                    {isOwner && !isMe && mUid !== tree.ownerId ? (
-                      <select
-                        value={role}
-                        onChange={(e) =>
-                          void onChangeRole(mUid, e.target.value as TreeRole)
-                        }
-                        className="input !py-1 !text-[11px]"
-                      >
-                        <option value="viewer">閲覧者</option>
-                        <option value="editor">編集者</option>
-                        <option value="owner">オーナー</option>
-                      </select>
-                    ) : (
-                      <span className="rounded-sm bg-washi-deep/50 px-1.5 py-0.5 text-[10px] tracking-wider2 text-ink-soft">
-                        {roleLabel}
-                      </span>
-                    )}
-                    {isOwner && !isMe && (
-                      <button
-                        type="button"
-                        onClick={() => void onRemoveMember(mUid)}
-                        className="text-[11px] text-shu hover:text-shu-deep hover:underline"
-                      >
-                        外す
-                      </button>
-                    )}
+                    {/* Role + actions row */}
+                    <div className="flex items-center justify-end gap-2">
+                      {isOwner && !isMe && mUid !== tree.ownerId ? (
+                        <select
+                          value={role}
+                          onChange={(e) =>
+                            void onChangeRole(mUid, e.target.value as TreeRole)
+                          }
+                          className="input !py-1 !text-[11px] !w-auto"
+                        >
+                          <option value="viewer">閲覧者</option>
+                          <option value="editor">編集者</option>
+                          <option value="owner">オーナー</option>
+                        </select>
+                      ) : (
+                        <span className="rounded-sm bg-washi-deep/50 px-1.5 py-0.5 text-[10px] tracking-wider2 text-ink-soft">
+                          {roleLabel}
+                        </span>
+                      )}
+                      {isOwner && !isMe && (
+                        <button
+                          type="button"
+                          onClick={() => void onRemoveMember(mUid)}
+                          className="text-[11px] text-shu hover:text-shu-deep hover:underline"
+                        >
+                          外す
+                        </button>
+                      )}
+                    </div>
                   </li>
                 );
               })}
