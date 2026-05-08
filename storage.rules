@@ -1,7 +1,6 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Photos belong to a tree. Members can read; only owner/editor can write.
     match /trees/{treeId}/persons/{file=**} {
       function memberRoles() {
         return firestore.get(/databases/(default)/documents/trees/$(treeId)).data.memberRoles;
@@ -9,10 +8,16 @@ service firebase.storage {
       function memberIds() {
         return firestore.get(/databases/(default)/documents/trees/$(treeId)).data.memberIds;
       }
+      function isAllowedEmail() {
+        return request.auth != null
+          && request.auth.token.email_verified == true
+          && firestore.exists(/databases/(default)/documents/config/access)
+          && request.auth.token.email in firestore.get(/databases/(default)/documents/config/access).data.allowedEmails;
+      }
       allow read: if request.auth != null
         && firestore.exists(/databases/(default)/documents/trees/$(treeId))
         && request.auth.uid in memberIds();
-      allow write: if request.auth != null
+      allow write: if isAllowedEmail()
         && firestore.exists(/databases/(default)/documents/trees/$(treeId))
         && memberRoles()[request.auth.uid] in ['owner', 'editor'];
     }

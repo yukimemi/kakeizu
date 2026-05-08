@@ -1,6 +1,20 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Allow-list check: only emails listed in config/access can CREATE new
+    // data (trees, persons, relationships). Existing members can always read
+    // / update / delete their own data. This blocks random Google sign-ups
+    // from spamming Storage / Firestore at our expense.
+    function accessConfig() {
+      return get(/databases/$(database)/documents/config/access).data;
+    }
+    function isAllowedEmail() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && exists(/databases/$(database)/documents/config/access)
+        && request.auth.token.email in accessConfig().allowedEmails;
+    }
+
     function treeData(treeId) {
       return get(/databases/$(database)/documents/trees/$(treeId)).data;
     }
@@ -24,30 +38,43 @@ service cloud.firestore {
       return roleIn(treeId, ['owner']);
     }
 
-    // Trees: members can read; owners can update/delete; any signed-in user
-    // can create a tree they own.
+    // Access-config doc: every signed-in user can read it (so the app can
+    // show "アクセスが許可されていません" upfront), but only allowed users
+    // can update it (effectively the original maintainer plus anyone they
+    // bless via the app/console).
+    match /config/access {
+      allow read: if request.auth != null;
+      allow write: if isAllowedEmail();
+    }
+
+    // Trees: members can read; owners can update/delete; only allow-listed
+    // signed-in users can CREATE a new tree they own.
     match /trees/{treeId} {
       allow read: if request.auth != null
         && request.auth.uid in resource.data.memberIds;
-      allow create: if request.auth != null
+      allow create: if isAllowedEmail()
         && request.resource.data.ownerId == request.auth.uid
         && request.auth.uid in request.resource.data.memberIds
         && request.resource.data.memberRoles[request.auth.uid] == 'owner';
       allow update, delete: if isOwner(treeId);
     }
 
-    // Persons: any tree member can read; only owner/editor can write.
+    // Persons: members can read; only allow-listed editors can write.
     match /persons/{personId} {
       allow read: if isMember(resource.data.treeId);
-      allow create: if canEdit(request.resource.data.treeId);
-      allow update, delete: if canEdit(resource.data.treeId);
+      allow create: if isAllowedEmail()
+        && canEdit(request.resource.data.treeId);
+      allow update, delete: if isAllowedEmail()
+        && canEdit(resource.data.treeId);
     }
 
     // Relationships: same as persons.
     match /relationships/{relId} {
       allow read: if isMember(resource.data.treeId);
-      allow create: if canEdit(request.resource.data.treeId);
-      allow update, delete: if canEdit(resource.data.treeId);
+      allow create: if isAllowedEmail()
+        && canEdit(request.resource.data.treeId);
+      allow update, delete: if isAllowedEmail()
+        && canEdit(resource.data.treeId);
     }
   }
 }
