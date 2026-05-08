@@ -35,13 +35,17 @@ export function TreeSettingsDialog({ tree, uid, myEmail, onClose }: Props) {
       setError("自分のメールアドレスは追加できません");
       return;
     }
-    if (
-      tree.invitedEmails?.includes(email) ||
-      Object.values(tree.memberInfo ?? {}).some(
-        (i) => i.email?.toLowerCase() === email,
-      )
-    ) {
-      setError("既に招待または参加済みです");
+    if (tree.invitedEmails?.includes(email)) {
+      setError("既に招待中です");
+      return;
+    }
+    // Only count people who are CURRENTLY in memberIds — stale memberInfo
+    // entries (e.g. someone removed earlier) shouldn't block re-inviting.
+    const activeMemberEmails = tree.memberIds
+      .map((m) => tree.memberInfo?.[m]?.email?.toLowerCase())
+      .filter((e): e is string => !!e);
+    if (activeMemberEmails.includes(email)) {
+      setError("既に参加済みです");
       return;
     }
     setBusy(true);
