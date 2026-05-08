@@ -1,0 +1,7 @@
+{
+  "hosting": {
+    "site": "kakeizu-71ce1",
+    "public": "firebase-hosting-public",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"]
+  }
+}
