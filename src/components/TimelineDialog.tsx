@@ -13,11 +13,11 @@ export function TimelineDialog({ persons, onPick, onClose }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-40 flex items-start justify-center bg-ink/30 p-4 pt-16 backdrop-blur-sm animate-fade-in"
+      className="fixed inset-x-0 top-0 z-40 flex h-svh items-start justify-center bg-ink/30 p-4 pt-16 backdrop-blur-sm animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="flex max-h-[85vh] max-h-[85dvh] w-full max-w-2xl animate-fade-in-up flex-col overflow-hidden rounded-xl border border-ink-line bg-paper shadow-paper-lg"
+        className="flex max-h-[85vh] max-h-[85svh] w-full max-w-2xl animate-fade-in-up flex-col overflow-hidden rounded-xl border border-ink-line bg-paper shadow-paper-lg"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-3 border-b border-ink-line bg-washi-warm/50 px-5 py-4">

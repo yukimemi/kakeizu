@@ -114,8 +114,8 @@ export function TreeSettingsDialog({ tree, uid, myEmail, onClose }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-ink/30 p-4 backdrop-blur-sm animate-fade-in">
-      <div className="flex max-h-[90vh] max-h-[90dvh] w-full max-w-lg animate-fade-in-up flex-col overflow-hidden rounded-xl border border-ink-line bg-paper shadow-paper-lg">
+    <div className="fixed inset-x-0 top-0 z-40 flex h-svh items-center justify-center bg-ink/30 p-4 backdrop-blur-sm animate-fade-in">
+      <div className="flex max-h-[90vh] max-h-[90svh] w-full max-w-lg animate-fade-in-up flex-col overflow-hidden rounded-xl border border-ink-line bg-paper shadow-paper-lg">
         <div className="flex items-center justify-between border-b border-ink-line bg-washi-warm/50 px-5 py-4">
           <div className="flex items-center gap-3">
             <span className="seal h-7 w-7 rounded-sm font-mincho text-xs">
