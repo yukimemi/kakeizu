@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Person, Relationship } from "../types";
 import { PersonForm } from "./PersonForm";
 import { softDeletePerson, updatePerson } from "../data/persons";
@@ -31,6 +31,22 @@ export function PersonDetailPanel({
   onClose,
 }: Props) {
   const [tab, setTab] = useState<"info" | "relations">("info");
+  const [saveStatus, setSaveStatus] = useState<
+    { ok: true; at: number } | { ok: false; error: string } | null
+  >(null);
+
+  // Auto-clear the success chip after a couple of seconds; errors stick
+  // around so the user can read them.
+  useEffect(() => {
+    if (!saveStatus || !saveStatus.ok) return;
+    const t = setTimeout(() => setSaveStatus(null), 2500);
+    return () => clearTimeout(t);
+  }, [saveStatus]);
+
+  // Different person opened → reset any lingering save chip.
+  useEffect(() => {
+    setSaveStatus(null);
+  }, [person.id]);
 
   const parents = relationships
     .filter((r) => r.type === "parent" && r.to === person.id)
@@ -142,6 +158,9 @@ export function PersonDetailPanel({
             initial={person}
             submitLabel="保存"
             readOnly={!canEdit}
+            formId={`person-form-${person.id}`}
+            hideSubmitButton
+            onSaveResult={(r) => setSaveStatus(r)}
             onSubmit={async (values) => {
               await updatePerson(person.id, values, {
                 actor,
@@ -149,6 +168,27 @@ export function PersonDetailPanel({
               });
             }}
           />
+          {canEdit && (
+            <section className="mt-10 border-t border-ink-line/60 pt-5">
+              <div className="mb-3 flex items-center gap-2">
+                <span className="h-px flex-none w-4 bg-shu/40" />
+                <h3 className="font-mincho text-sm font-semibold tracking-wider text-shu-deep">
+                  危険ゾーン
+                </h3>
+                <span className="h-px flex-1 bg-shu/30" />
+              </div>
+              <p className="mb-3 text-[11px] leading-5 text-ink-mute">
+                削除した内容は「編集履歴」から元に戻せます。
+              </p>
+              <button
+                type="button"
+                onClick={() => void handleDelete()}
+                className="w-full rounded-md border border-shu/30 bg-shu-soft/30 py-2.5 text-sm font-medium tracking-wider2 text-shu-deep transition hover:border-shu/50 hover:bg-shu-soft/50"
+              >
+                この人物を削除（つながりも一緒に削除）
+              </button>
+            </section>
+          )}
         </div>
         <div className={tab === "relations" ? "" : "hidden"}>
           <RelationsTab
@@ -165,14 +205,24 @@ export function PersonDetailPanel({
         </div>
       </div>
 
-      {canEdit && (
-        <div className="border-t border-ink-line bg-washi-warm/40 px-5 py-3">
+      {canEdit && tab === "info" && (
+        <div className="flex flex-col gap-2 border-t border-ink-line bg-washi-warm/40 px-5 py-3">
+          {saveStatus &&
+            (saveStatus.ok ? (
+              <div className="text-center text-xs tracking-wider2 text-shu">
+                ✓ 保存しました
+              </div>
+            ) : (
+              <div className="rounded-md border-l-2 border-shu bg-shu-soft/30 px-3 py-2 text-xs text-shu-deep">
+                保存に失敗しました: {saveStatus.error}
+              </div>
+            ))}
           <button
-            type="button"
-            onClick={() => void handleDelete()}
-            className="w-full rounded-md border border-shu/25 bg-shu-soft/30 py-2 text-sm font-medium tracking-wider2 text-shu-deep transition hover:border-shu/40 hover:bg-shu-soft/50"
+            type="submit"
+            form={`person-form-${person.id}`}
+            className="btn-shu w-full"
           >
-            この人物を削除
+            保存
           </button>
         </div>
       )}

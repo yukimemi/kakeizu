@@ -45,6 +45,18 @@ type Props = {
   ) => Promise<void>;
   submitLabel: string;
   readOnly?: boolean;
+  // When set, the <form> exposes this id so an external <button form={id}>
+  // can trigger submission. Used by PersonDetailPanel to put the save
+  // button next to the delete button in the panel footer.
+  formId?: string;
+  // Hide the in-form submit button when an external one is rendered.
+  hideSubmitButton?: boolean;
+  // Called after each save attempt so the parent can render a status
+  // chip near its own (external) submit button. The internal status
+  // line is hidden when this is provided.
+  onSaveResult?: (
+    r: { ok: true; at: number } | { ok: false; error: string },
+  ) => void;
 };
 
 function buildDefaultValues(initial: Person): FormValues {
@@ -90,6 +102,9 @@ export function PersonForm({
   onSubmit,
   submitLabel,
   readOnly = false,
+  formId,
+  hideSubmitButton = false,
+  onSaveResult,
 }: Props) {
   const {
     register,
@@ -190,6 +205,8 @@ export function PersonForm({
   const submit = handleSubmit(
     async (v) => {
       setSaveError(null);
+      let succeeded = false;
+      let savedAtLocal = 0;
       try {
         // Strip empty contact entries; normalise label="" → undefined.
         const phones = v.phones
@@ -228,11 +245,16 @@ export function PersonForm({
           photoTransform: photoUrl ? photoTransform : undefined,
           position: initial.position,
         });
-        setSavedAt(Date.now());
+        savedAtLocal = Date.now();
+        setSavedAt(savedAtLocal);
+        succeeded = true;
       } catch (e) {
         console.error("save failed", e);
-        setSaveError(e instanceof Error ? e.message : String(e));
+        const msg = e instanceof Error ? e.message : String(e);
+        setSaveError(msg);
+        onSaveResult?.({ ok: false, error: msg });
       }
+      if (succeeded) onSaveResult?.({ ok: true, at: savedAtLocal });
     },
     (errs) => {
       console.warn("validation failed", errs);
@@ -240,7 +262,11 @@ export function PersonForm({
   );
 
   return (
-    <form onSubmit={(e) => void submit(e)} className="flex flex-col gap-4">
+    <form
+      id={formId}
+      onSubmit={(e) => void submit(e)}
+      className="flex flex-col gap-4"
+    >
       <div className="flex flex-col items-center gap-2">
         {photoUrl ? (
           readOnly ? (
@@ -499,24 +525,26 @@ export function PersonForm({
         </Field>
       </fieldset>
 
-      {!readOnly && (
-        <button
-          type="submit"
-          disabled={isSubmitting || uploading}
-          className="btn-shu mt-2 w-full"
-        >
-          {isSubmitting ? "保存中..." : submitLabel}
-        </button>
-      )}
-      {saveError && (
-        <div className="rounded-md border-l-2 border-shu bg-shu-soft/30 px-3 py-2 text-xs text-shu-deep">
-          保存に失敗しました: {saveError}
-        </div>
-      )}
-      {!saveError && savedAt && (
-        <div className="text-center text-xs tracking-wider2 text-shu">
-          ✓ 保存しました
-        </div>
+      {!readOnly && !hideSubmitButton && (
+        <>
+          <button
+            type="submit"
+            disabled={isSubmitting || uploading}
+            className="btn-shu mt-2 w-full"
+          >
+            {isSubmitting ? "保存中..." : submitLabel}
+          </button>
+          {saveError && (
+            <div className="rounded-md border-l-2 border-shu bg-shu-soft/30 px-3 py-2 text-xs text-shu-deep">
+              保存に失敗しました: {saveError}
+            </div>
+          )}
+          {!saveError && savedAt && (
+            <div className="text-center text-xs tracking-wider2 text-shu">
+              ✓ 保存しました
+            </div>
+          )}
+        </>
       )}
     </form>
   );

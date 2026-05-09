@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import type { Tree } from "../types";
 
@@ -30,6 +30,21 @@ export function Toolbar({
   const { user, logout } = useAuth();
   const [open, setOpen] = useState(false);
   const current = trees.find((t) => t.id === currentTreeId) ?? null;
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node)
+      ) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [open]);
 
   return (
     <header className="z-10 flex h-14 flex-none items-center gap-3 border-b border-ink-line bg-paper/95 px-3 backdrop-blur-sm sm:px-5">
@@ -44,7 +59,7 @@ export function Toolbar({
       <div className="h-6 w-px bg-ink-line" />
 
       {/* Tree selector */}
-      <div className="relative">
+      <div className="relative" ref={dropdownRef}>
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
@@ -57,15 +72,10 @@ export function Toolbar({
           </span>
         </button>
         {open && (
-          <>
-            <div
-              className="fixed inset-0 z-30"
-              onClick={() => setOpen(false)}
-            />
-            <ul
-              className="absolute left-0 top-full z-40 mt-2 w-72 animate-fade-in rounded-lg border border-ink-line bg-paper p-1.5 shadow-paper-lg"
-              role="menu"
-            >
+          <ul
+            className="absolute left-0 top-full z-40 mt-2 w-72 animate-fade-in rounded-lg border border-ink-line bg-paper p-1.5 shadow-paper-lg"
+            role="menu"
+          >
               {trees.map((t) => {
                 const role = t.memberRoles?.[user?.uid ?? ""] ?? "editor";
                 const roleLabel =
@@ -174,8 +184,7 @@ export function Toolbar({
                   </button>
                 </li>
               )}
-            </ul>
-          </>
+          </ul>
         )}
       </div>
 
