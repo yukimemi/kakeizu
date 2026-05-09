@@ -33,6 +33,7 @@ import { AuditHistoryDialog } from "../components/AuditHistoryDialog";
 import { SearchDialog } from "../components/SearchDialog";
 import { BirthdaysDialog } from "../components/BirthdaysDialog";
 import { TimelineDialog } from "../components/TimelineDialog";
+import { exportTreeAsPdf, exportTreeAsPng } from "../lib/export";
 import type { Actor } from "../data/audit";
 
 const nodeTypes = { person: PersonNode, couple: CoupleNode };
@@ -68,6 +69,8 @@ function TreePageInner() {
   const [showSearch, setShowSearch] = useState(false);
   const [showBirthdays, setShowBirthdays] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const flowWrapperRef = useRef<HTMLDivElement>(null);
 
   const actor: Actor = {
     uid,
@@ -491,6 +494,22 @@ function TreePageInner() {
 
   const onPaneClick = useCallback(() => setSelectedId(null), []);
 
+  const runExport = useCallback(
+    async (kind: "png" | "pdf") => {
+      const wrapper = flowWrapperRef.current;
+      if (!wrapper || !currentTree) return;
+      setExportError(null);
+      try {
+        const fn = kind === "png" ? exportTreeAsPng : exportTreeAsPdf;
+        await fn(wrapper, nodes, currentTree.name);
+      } catch (e) {
+        console.error("[export] failed", e);
+        setExportError(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [nodes, currentTree],
+  );
+
   const handleAddPerson = async () => {
     if (!treeId) return;
     const id = await createPerson(
@@ -525,13 +544,16 @@ function TreePageInner() {
         onOpenSearch={() => setShowSearch(true)}
         onOpenBirthdays={() => setShowBirthdays(true)}
         onOpenTimeline={() => setShowTimeline(true)}
+        onExportPng={() => void runExport("png")}
+        onExportPdf={() => void runExport("pdf")}
         persons={persons}
         canImport={canEdit && trees.length >= 2}
         canAddPerson={!!treeId && canEdit}
         canSearch={!!treeId && persons.length > 0}
+        canExport={!!treeId && persons.length > 0}
       />
       <div className="relative flex min-h-0 flex-1 overflow-hidden">
-        <div className="relative h-full min-w-0 flex-1">
+        <div ref={flowWrapperRef} className="relative h-full min-w-0 flex-1">
           <ReactFlow
             nodes={allNodes}
             edges={edges}
@@ -652,6 +674,18 @@ function TreePageInner() {
       {autoCreateError && (
         <div className="absolute bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-md border-l-2 border-shu bg-paper px-4 py-2 text-sm text-shu-deep shadow-paper-lg">
           家系図の自動作成に失敗: {autoCreateError}
+        </div>
+      )}
+      {exportError && (
+        <div className="absolute bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-md border-l-2 border-shu bg-paper px-4 py-2 text-sm text-shu-deep shadow-paper-lg">
+          書き出しに失敗: {exportError}
+          <button
+            type="button"
+            onClick={() => setExportError(null)}
+            className="ml-3 text-xs text-ink-mute hover:text-ink"
+          >
+            ×
+          </button>
         </div>
       )}
     </div>
