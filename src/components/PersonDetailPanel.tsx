@@ -1,12 +1,12 @@
 import { useState } from "react";
 import type { Person, Relationship } from "../types";
 import { PersonForm } from "./PersonForm";
-import { deletePerson, updatePerson } from "../data/persons";
+import { softDeletePerson, updatePerson } from "../data/persons";
 import {
   createRelationship,
-  deleteRelationship,
-  deleteRelationshipsFor,
+  softDeleteRelationship,
 } from "../data/relationships";
+import type { Actor } from "../data/audit";
 
 type Props = {
   treeId: string;
@@ -14,8 +14,12 @@ type Props = {
   allPersons: Person[];
   relationships: Relationship[];
   canEdit: boolean;
+  actor: Actor;
   onClose: () => void;
 };
+
+const fullName = (p: Person | undefined): string =>
+  p ? `${p.lastName} ${p.firstName}` : "";
 
 export function PersonDetailPanel({
   treeId,
@@ -23,6 +27,7 @@ export function PersonDetailPanel({
   allPersons,
   relationships,
   canEdit,
+  actor,
   onClose,
 }: Props) {
   const [tab, setTab] = useState<"info" | "relations">("info");
@@ -53,15 +58,22 @@ export function PersonDetailPanel({
     }))
     .filter((x) => x.person);
 
+  const nameOf = (id: string): string => {
+    const p = allPersons.find((x) => x.id === id);
+    return fullName(p);
+  };
+
   const handleDelete = async () => {
     if (
       !confirm(
-        `${person.lastName} ${person.firstName} を削除しますか？\n関連する繋がりもすべて削除されます。`,
+        `${fullName(person)} を削除しますか？\n削除した内容は「編集履歴」から元に戻すことができます。`,
       )
     )
       return;
-    await deleteRelationshipsFor(treeId, person.id);
-    await deletePerson(person.id);
+    const related = relationships.filter(
+      (r) => r.from === person.id || r.to === person.id,
+    );
+    await softDeletePerson(person, actor, related, nameOf);
     onClose();
   };
 
@@ -123,9 +135,6 @@ export function PersonDetailPanel({
       </nav>
 
       <div className="flex-1 overflow-y-auto px-5 py-5">
-        {/* Both tabs stay mounted so unsaved form edits survive a tab switch.
-            CSS hides the inactive one. The form remounts only when the
-            selected person changes (via key={person.id}). */}
         <div className={tab === "info" ? "" : "hidden"}>
           <PersonForm
             key={person.id}
@@ -134,7 +143,10 @@ export function PersonDetailPanel({
             submitLabel="保存"
             readOnly={!canEdit}
             onSubmit={async (values) => {
-              await updatePerson(person.id, values);
+              await updatePerson(person.id, values, {
+                actor,
+                before: person,
+              });
             }}
           />
         </div>
@@ -147,6 +159,8 @@ export function PersonDetailPanel({
             children={children}
             spouses={spouses}
             canEdit={canEdit}
+            actor={actor}
+            nameOf={nameOf}
           />
         </div>
       </div>
@@ -174,6 +188,8 @@ function RelationsTab({
   children,
   spouses,
   canEdit,
+  actor,
+  nameOf,
 }: {
   treeId: string;
   person: Person;
@@ -182,15 +198,30 @@ function RelationsTab({
   children: { rel: Relationship; person?: Person }[];
   spouses: { rel: Relationship; person?: Person }[];
   canEdit: boolean;
+  actor: Actor;
+  nameOf: (id: string) => string;
 }) {
   const candidates = allPersons.filter((p) => p.id !== person.id);
+  const selfName = fullName(person);
 
   const addParent = (id: string) =>
-    createRelationship(treeId, "parent", id, person.id);
+    createRelationship(treeId, "parent", id, person.id, {
+      actor,
+      fromName: nameOf(id),
+      toName: selfName,
+    });
   const addChild = (id: string) =>
-    createRelationship(treeId, "parent", person.id, id);
+    createRelationship(treeId, "parent", person.id, id, {
+      actor,
+      fromName: selfName,
+      toName: nameOf(id),
+    });
   const addSpouse = (id: string) =>
-    createRelationship(treeId, "spouse", person.id, id);
+    createRelationship(treeId, "spouse", person.id, id, {
+      actor,
+      fromName: selfName,
+      toName: nameOf(id),
+    });
 
   return (
     <div className="flex flex-col gap-6">
@@ -208,6 +239,8 @@ function RelationsTab({
         onAdd={addParent}
         addLabel="+ 親を追加"
         canEdit={canEdit}
+        actor={actor}
+        nameOf={nameOf}
       />
       <Section
         title="配偶者"
@@ -218,6 +251,8 @@ function RelationsTab({
         onAdd={addSpouse}
         addLabel="+ 配偶者を追加"
         canEdit={canEdit}
+        actor={actor}
+        nameOf={nameOf}
       />
       <Section
         title="子"
@@ -228,6 +263,8 @@ function RelationsTab({
         onAdd={addChild}
         addLabel="+ 子を追加"
         canEdit={canEdit}
+        actor={actor}
+        nameOf={nameOf}
       />
     </div>
   );
@@ -240,6 +277,8 @@ function Section({
   onAdd,
   addLabel,
   canEdit,
+  actor,
+  nameOf,
 }: {
   title: string;
   items: { rel: Relationship; person?: Person }[];
@@ -247,6 +286,8 @@ function Section({
   onAdd: (id: string) => Promise<unknown>;
   addLabel: string;
   canEdit: boolean;
+  actor: Actor;
+  nameOf: (id: string) => string;
 }) {
   return (
     <div>
@@ -272,7 +313,14 @@ function Section({
               {canEdit && (
                 <button
                   type="button"
-                  onClick={() => void deleteRelationship(it.rel.id)}
+                  onClick={() =>
+                    void softDeleteRelationship(
+                      it.rel,
+                      actor,
+                      nameOf(it.rel.from),
+                      nameOf(it.rel.to),
+                    )
+                  }
                   className="text-[11px] text-shu hover:text-shu-deep hover:underline"
                 >
                   外す
@@ -290,7 +338,6 @@ function Section({
               const id = e.target.value;
               if (!id) return;
               void onAdd(id);
-              // reset to placeholder for the next pick
               e.target.value = "";
             }}
             className="input w-full"

@@ -60,6 +60,10 @@ export type Person = {
   sns?: string;
   position?: { x: number; y: number };
   importedFromId?: string;
+  // Soft-delete: when set, the person is hidden from the tree but remains in
+  // Firestore so the audit-history "元に戻す" can restore it.
+  deletedAt?: number;
+  deletedBy?: string;
   createdAt?: number;
   updatedAt?: number;
 };
@@ -74,5 +78,52 @@ export type Relationship = {
   type: RelationshipType;
   from: string;
   to: string;
+  deletedAt?: number;
+  deletedBy?: string;
   createdAt?: number;
 };
+
+// ---------- Audit log ----------
+
+export type AuditEventType = "create" | "update" | "delete" | "restore";
+export type AuditTargetType = "person" | "relationship";
+
+export type AuditEvent = {
+  id: string;
+  treeId: string;
+  ts: number; // ms epoch
+  actor: string; // uid
+  actorEmail?: string;
+  actorName?: string;
+  type: AuditEventType;
+  targetType: AuditTargetType;
+  targetId: string;
+  // JSON-safe snapshots. id / treeId are stripped (redundant). For relationship
+  // events we also stash fromName/toName so the history list can render
+  // without a separate person lookup.
+  before?: Record<string, unknown>;
+  after?: Record<string, unknown>;
+  // Pre-computed Japanese summary, evaluated at write time.
+  summary: string;
+  // When this event was produced by reverting another event, points back to
+  // the reverted event's id.
+  revertOfId?: string;
+};
+
+// AuditEventInput = an event prepared on the client, before Firestore assigns
+// an id and the server stamps `ts`.
+export type AuditEventInput = Omit<AuditEvent, "id" | "ts">;
+
+export type RevertPlan =
+  | {
+      kind: "restorePerson";
+      personId: string;
+      // Relationships that were soft-deleted alongside the person — restore
+      // them in the same operation so the family graph snaps back as one
+      // logical unit.
+      relationshipIds: string[];
+    }
+  | {
+      kind: "restoreRelationship";
+      relationshipId: string;
+    };

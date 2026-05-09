@@ -15,7 +15,7 @@ import {
 import { useAuth } from "../auth/AuthContext";
 import { useTrees, createTree, backfillSelfMemberInfo } from "../data/trees";
 import { usePersons, createPerson } from "../data/persons";
-import { useRelationships, deleteRelationship } from "../data/relationships";
+import { useRelationships } from "../data/relationships";
 import {
   computeAutoLayout,
   NODE_WIDTH,
@@ -29,6 +29,8 @@ import { Toolbar } from "../components/Toolbar";
 import { PersonDetailPanel } from "../components/PersonDetailPanel";
 import { TreeSettingsDialog } from "../components/TreeSettingsDialog";
 import { TreeImportDialog } from "../components/TreeImportDialog";
+import { AuditHistoryDialog } from "../components/AuditHistoryDialog";
+import type { Actor } from "../data/audit";
 
 const nodeTypes = { person: PersonNode, couple: CoupleNode };
 const edgeTypes = { parent: ParentEdge, spouse: SpouseEdge };
@@ -59,6 +61,13 @@ function TreePageInner() {
   };
   const [showSettings, setShowSettings] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+
+  const actor: Actor = {
+    uid,
+    ...(user?.email ? { email: user.email } : {}),
+    ...(user?.displayName ? { name: user.displayName } : {}),
+  };
 
   const [autoCreateError, setAutoCreateError] = useState<string | null>(null);
   const autoCreateAttempted = useRef(false);
@@ -159,18 +168,6 @@ function TreePageInner() {
     }, 50);
     return () => clearTimeout(t);
   }, [persons.length, rf]);
-
-  // Cleanup: delete relationships pointing to non-existent persons. Skip
-  // while data is still loading (treeId not set yet).
-  useEffect(() => {
-    if (!treeId) return;
-    if (persons.length === 0 || relationships.length === 0) return;
-    const ids = new Set(persons.map((p) => p.id));
-    const orphans = relationships.filter(
-      (r) => !ids.has(r.from) || !ids.has(r.to),
-    );
-    for (const o of orphans) void deleteRelationship(o.id);
-  }, [persons, relationships, treeId]);
 
   const autoPositions = useMemo(
     () => computeAutoLayout(persons, relationships),
@@ -490,10 +487,11 @@ function TreePageInner() {
 
   const handleAddPerson = async () => {
     if (!treeId) return;
-    const id = await createPerson(treeId, {
-      lastName: "新規",
-      firstName: "人物",
-    });
+    const id = await createPerson(
+      treeId,
+      { lastName: "新規", firstName: "人物" },
+      { actor },
+    );
     setSelectedId(id);
   };
 
@@ -517,6 +515,7 @@ function TreePageInner() {
         }}
         onOpenSettings={() => setShowSettings(true)}
         onOpenImport={() => setShowImport(true)}
+        onOpenHistory={() => setShowHistory(true)}
         canImport={canEdit && trees.length >= 2}
         canAddPerson={!!treeId && canEdit}
       />
@@ -558,10 +557,21 @@ function TreePageInner() {
             allPersons={persons}
             relationships={relationships}
             canEdit={canEdit}
+            actor={actor}
             onClose={() => setSelectedId(null)}
           />
         )}
       </div>
+      {showHistory && currentTree && (
+        <AuditHistoryDialog
+          treeId={currentTree.id}
+          uid={uid}
+          email={user?.email}
+          displayName={user?.displayName}
+          canEdit={canEdit}
+          onClose={() => setShowHistory(false)}
+        />
+      )}
       {showSettings && currentTree && (
         <TreeSettingsDialog
           tree={currentTree}

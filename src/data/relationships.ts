@@ -4,14 +4,20 @@ import {
   where,
   onSnapshot,
   addDoc,
-  deleteDoc,
+  updateDoc,
   doc,
   serverTimestamp,
-  getDocs,
 } from "firebase/firestore";
 import { useEffect, useState } from "react";
 import { db } from "../firebase";
 import type { Relationship, RelationshipType } from "../types";
+import {
+  buildRelationshipCreateEvent,
+  buildRelationshipDeleteEvent,
+  filterActive,
+  type Actor,
+} from "./audit";
+import { logEvent } from "./audit.io";
 
 const COL = "relationships";
 
@@ -34,7 +40,7 @@ export function useRelationships(treeId: string | undefined) {
           id: d.id,
           ...(d.data() as Omit<Relationship, "id">),
         }));
-        setRelationships(docs);
+        setRelationships(filterActive(docs));
         setLoading(false);
       },
       (err) => {
@@ -53,7 +59,8 @@ export async function createRelationship(
   type: RelationshipType,
   from: string,
   to: string,
-) {
+  options?: { actor?: Actor; fromName?: string; toName?: string },
+): Promise<string> {
   const ref = await addDoc(collection(db, COL), {
     treeId,
     type,
@@ -61,26 +68,39 @@ export async function createRelationship(
     to,
     createdAt: serverTimestamp(),
   });
+  if (options?.actor) {
+    const rel: Relationship = { id: ref.id, treeId, type, from, to };
+    await logEvent(
+      buildRelationshipCreateEvent({
+        treeId,
+        actor: options.actor,
+        relationship: rel,
+        fromName: options.fromName ?? "",
+        toName: options.toName ?? "",
+      }),
+    );
+  }
   return ref.id;
 }
 
-export async function deleteRelationship(id: string) {
-  await deleteDoc(doc(db, COL, id));
+export async function softDeleteRelationship(
+  relationship: Relationship,
+  actor: Actor,
+  fromName: string,
+  toName: string,
+): Promise<void> {
+  await updateDoc(doc(db, COL, relationship.id), {
+    deletedAt: serverTimestamp(),
+    deletedBy: actor.uid,
+  });
+  await logEvent(
+    buildRelationshipDeleteEvent({
+      treeId: relationship.treeId,
+      actor,
+      relationship,
+      fromName,
+      toName,
+    }),
+  );
 }
 
-export async function deleteRelationshipsFor(treeId: string, personId: string) {
-  const q1 = query(
-    collection(db, COL),
-    where("treeId", "==", treeId),
-    where("from", "==", personId),
-  );
-  const q2 = query(
-    collection(db, COL),
-    where("treeId", "==", treeId),
-    where("to", "==", personId),
-  );
-  const [a, b] = await Promise.all([getDocs(q1), getDocs(q2)]);
-  await Promise.all(
-    [...a.docs, ...b.docs].map((d) => deleteDoc(doc(db, COL, d.id))),
-  );
-}

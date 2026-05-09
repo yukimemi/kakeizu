@@ -10,6 +10,7 @@ type Props = {
   onCreateTree: () => void;
   onOpenSettings: () => void;
   onOpenImport: () => void;
+  onOpenHistory: () => void;
   canImport: boolean;
   canAddPerson: boolean;
 };
@@ -22,6 +23,7 @@ export function Toolbar({
   onCreateTree,
   onOpenSettings,
   onOpenImport,
+  onOpenHistory,
   canImport,
   canAddPerson,
 }: Props) {
@@ -125,6 +127,35 @@ export function Toolbar({
                   >
                     <span className="text-ink-mute">⇄</span>
                     他の家系図から人物をインポート
+                  </button>
+                </li>
+              )}
+              {current && (
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenHistory();
+                      setOpen(false);
+                    }}
+                    className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-ink-soft transition hover:bg-washi-warm hover:text-ink"
+                  >
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="text-ink-mute"
+                      aria-hidden
+                    >
+                      <circle cx="12" cy="12" r="10" />
+                      <polyline points="12 6 12 12 16 14" />
+                    </svg>
+                    編集履歴
                   </button>
                 </li>
               )}

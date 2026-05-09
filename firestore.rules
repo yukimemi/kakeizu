@@ -108,5 +108,16 @@ service cloud.firestore {
       allow update, delete: if isAllowedEmail()
         && canEdit(resource.data.treeId);
     }
+
+    // Audit log: append-only history of person/relationship operations.
+    // Members can read their tree's history; editors create new entries
+    // (logging + revert events). Existing entries are immutable.
+    match /auditEvents/{eventId} {
+      allow read: if isMember(resource.data.treeId);
+      allow create: if isAllowedEmail()
+        && canEdit(request.resource.data.treeId)
+        && request.resource.data.actor == request.auth.uid;
+      allow update, delete: if false;
+    }
   }
 }
