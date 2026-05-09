@@ -504,7 +504,7 @@ function TreePageInner() {
   const selected = persons.find((p) => p.id === selectedId) ?? null;
 
   return (
-    <div className="flex h-screen h-svh flex-col overflow-hidden">
+    <div className="relative flex h-screen h-svh flex-col overflow-hidden">
       <Toolbar
         onAddPerson={() => void handleAddPerson()}
         trees={trees}
