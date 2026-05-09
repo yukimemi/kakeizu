@@ -1,6 +1,7 @@
 import { Fragment } from "react";
 import type { Person } from "../types";
 import { buildTimeline } from "../lib/timeline";
+import { formatEra } from "../lib/era";
 
 type Props = {
   persons: Person[];
@@ -68,8 +69,16 @@ export function TimelineDialog({ persons, onPick, onClose }: Props) {
                   <Fragment key={`${e.personId}-${e.kind}-${e.date}`}>
                     {showYear && (
                       <li className="-ml-5 mb-2 mt-5 first:mt-0">
-                        <h3 className="font-mincho text-base font-semibold tracking-wider text-ink">
-                          {year}年
+                        <h3 className="flex items-baseline gap-2 font-mincho text-base font-semibold tracking-wider text-ink">
+                          <span>{year}年</span>
+                          {(() => {
+                            const era = formatEra(e.date);
+                            return era ? (
+                              <span className="text-xs font-normal tracking-wider2 text-ink-mute">
+                                {era}年
+                              </span>
+                            ) : null;
+                          })()}
                         </h3>
                       </li>
                     )}
