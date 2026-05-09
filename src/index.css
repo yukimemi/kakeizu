@@ -49,7 +49,9 @@ body::before {
 @layer components {
   /* Refined ink-on-paper input */
   .input {
-    @apply w-full rounded-md border border-ink-line bg-white/85 px-3 py-2 text-sm text-ink outline-none transition placeholder:text-ink-faint;
+    /* Use 16px on mobile so iOS Safari doesn't autozoom on focus, then
+       drop back to 14px on desktop where the smaller size reads better. */
+    @apply w-full rounded-md border border-ink-line bg-white/85 px-3 py-2 text-base text-ink outline-none transition placeholder:text-ink-faint sm:text-sm;
   }
   .input:focus {
     @apply border-ink/70 bg-white;

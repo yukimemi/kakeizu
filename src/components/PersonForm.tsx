@@ -303,8 +303,8 @@ export function PersonForm({
           </div>
         )}
         {!readOnly && (
-          <div className="flex items-center gap-3">
-            <label className="cursor-pointer text-[11px] tracking-wider2 text-shu hover:text-shu-deep hover:underline">
+          <div className="flex items-center gap-2">
+            <label className="inline-flex min-h-[36px] cursor-pointer items-center rounded-md border border-ink-line bg-white/60 px-3 text-xs tracking-wider2 text-shu transition hover:border-shu/40 hover:bg-shu-soft/15 hover:text-shu-deep">
               {uploading
                 ? "アップロード中..."
                 : photoUrl
@@ -322,16 +322,13 @@ export function PersonForm({
               />
             </label>
             {photoUrl && (
-              <>
-                <span className="text-ink-faint">·</span>
-                <button
-                  type="button"
-                  onClick={() => void onDeletePhoto()}
-                  className="text-[11px] tracking-wider2 text-ink-mute hover:text-shu-deep hover:underline"
-                >
-                  写真を削除
-                </button>
-              </>
+              <button
+                type="button"
+                onClick={() => void onDeletePhoto()}
+                className="inline-flex min-h-[36px] items-center rounded-md border border-ink-line bg-white/60 px-3 text-xs tracking-wider2 text-ink-mute transition hover:border-shu/40 hover:bg-shu-soft/15 hover:text-shu-deep"
+              >
+                削除
+              </button>
             )}
           </div>
         )}
@@ -460,7 +457,7 @@ export function PersonForm({
             <button
               type="button"
               onClick={() => phonesArr.append({ label: "", value: "" })}
-              className="self-start text-[11px] tracking-wider2 text-shu hover:text-shu-deep hover:underline"
+              className="inline-flex min-h-[40px] self-start items-center rounded-md border border-dashed border-ink-line/80 px-3 text-xs tracking-wider2 text-shu transition hover:border-shu/50 hover:bg-shu-soft/15 hover:text-shu-deep"
             >
               + 電話番号を追加
             </button>
@@ -491,7 +488,7 @@ export function PersonForm({
             <button
               type="button"
               onClick={() => emailsArr.append({ label: "", value: "" })}
-              className="self-start text-[11px] tracking-wider2 text-shu hover:text-shu-deep hover:underline"
+              className="inline-flex min-h-[40px] self-start items-center rounded-md border border-dashed border-ink-line/80 px-3 text-xs tracking-wider2 text-shu transition hover:border-shu/50 hover:bg-shu-soft/15 hover:text-shu-deep"
             >
               + メールを追加
             </button>
@@ -525,7 +522,7 @@ export function PersonForm({
                     href={url}
                     target="_blank"
                     rel="noreferrer"
-                    className="flex-none text-[11px] tracking-wider2 text-shu hover:text-shu-deep hover:underline"
+                    className="inline-flex h-9 flex-none items-center rounded-md px-2.5 text-xs tracking-wider2 text-shu transition hover:bg-shu-soft/30 hover:text-shu-deep"
                     title={url}
                   >
                     開く ↗
@@ -656,13 +653,13 @@ function ContactRow({
         <button
           type="button"
           onClick={onRemove}
-          className="flex-none rounded-md p-1 text-ink-mute transition hover:bg-shu-soft/30 hover:text-shu-deep"
+          className="flex h-10 w-10 flex-none items-center justify-center rounded-md text-ink-mute transition hover:bg-shu-soft/30 hover:text-shu-deep"
           aria-label="削除"
           title="削除"
         >
           <svg
-            width="14"
-            height="14"
+            width="16"
+            height="16"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"

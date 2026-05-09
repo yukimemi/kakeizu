@@ -108,12 +108,12 @@ export function PersonDetailPanel({
         <button
           type="button"
           onClick={onClose}
-          className="rounded-md p-1.5 text-ink-mute transition hover:bg-washi-warm hover:text-ink"
+          className="flex h-10 w-10 flex-none items-center justify-center rounded-md text-ink-mute transition hover:bg-washi-warm hover:text-ink"
           aria-label="閉じる"
         >
           <svg
-            width="16"
-            height="16"
+            width="20"
+            height="20"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -372,7 +372,8 @@ function Section({
                       nameOf(it.rel.to),
                     )
                   }
-                  className="text-[11px] text-shu hover:text-shu-deep hover:underline"
+                  className="flex min-h-[36px] flex-none items-center rounded-md px-3 text-xs tracking-wider2 text-shu transition hover:bg-shu-soft/30 hover:text-shu-deep"
+                  aria-label="関係を外す"
                 >
                   外す
                 </button>
