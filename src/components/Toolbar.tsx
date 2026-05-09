@@ -263,9 +263,14 @@ export function Toolbar({
           onClick={onOpenBirthdays}
           title={`今月の誕生日 (${birthdayCount} 人)`}
           aria-label={`今月の誕生日 ${birthdayCount} 人`}
-          className="relative hidden h-8 items-center gap-1 rounded-md border border-shu/30 bg-shu-soft/30 px-2 font-mincho text-xs tracking-wider2 text-shu-deep transition hover:border-shu/50 hover:bg-shu-soft/50 sm:flex"
+          className="relative flex h-8 items-center gap-1 rounded-md border border-shu/30 bg-shu-soft/30 px-2 font-mincho text-xs tracking-wider2 text-shu-deep transition hover:border-shu/50 hover:bg-shu-soft/50"
         >
-          <span>{new Date().getMonth() + 1}月の誕生日</span>
+          <span className="text-sm font-semibold leading-none sm:hidden">
+            誕
+          </span>
+          <span className="hidden sm:inline">
+            {new Date().getMonth() + 1}月の誕生日
+          </span>
           <span className="rounded-sm bg-shu px-1 py-0.5 text-[10px] font-semibold text-paper">
             {birthdayCount}
           </span>
