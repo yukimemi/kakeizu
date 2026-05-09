@@ -8,6 +8,7 @@ import {
   softDeleteRelationship,
 } from "../data/relationships";
 import type { Actor } from "../data/audit";
+import { findKinship } from "../lib/kinship";
 
 type Props = {
   treeId: string;
@@ -16,6 +17,10 @@ type Props = {
   relationships: Relationship[];
   canEdit: boolean;
   actor: Actor;
+  // The id of the person the current viewer has marked as themselves (via
+  // the toolbar 自分を設定 picker). When set we render the kinship of the
+  // person currently being inspected.
+  selfPersonId: string | null;
   onClose: () => void;
 };
 
@@ -29,8 +34,13 @@ export function PersonDetailPanel({
   relationships,
   canEdit,
   actor,
+  selfPersonId,
   onClose,
 }: Props) {
+  const kinshipLabel =
+    selfPersonId && selfPersonId !== person.id
+      ? findKinship(selfPersonId, person.id, allPersons, relationships)
+      : null;
   const [tab, setTab] = useState<"info" | "relations">("info");
   const [saveStatus, setSaveStatus] = useState<
     { ok: true; at: number } | { ok: false; error: string } | null
@@ -97,13 +107,24 @@ export function PersonDetailPanel({
   return (
     <aside className="absolute inset-0 z-20 flex h-full w-full flex-none animate-fade-in flex-col border-l border-ink-line bg-paper shadow-paper-lg sm:relative sm:inset-auto sm:w-[400px]">
       <div className="flex items-center justify-between border-b border-ink-line px-5 py-4">
-        <div>
+        <div className="min-w-0 flex-1">
           <div className="text-[10px] uppercase tracking-widest2 text-ink-faint">
             人物
+            {selfPersonId === person.id && (
+              <span className="ml-2 rounded-sm bg-shu-soft/60 px-1.5 py-0.5 text-[10px] tracking-wider2 text-shu-deep">
+                あなた
+              </span>
+            )}
           </div>
-          <div className="font-mincho text-lg font-semibold tracking-wider text-ink">
+          <div className="truncate font-mincho text-lg font-semibold tracking-wider text-ink">
             {person.lastName} {person.firstName}
           </div>
+          {kinshipLabel && (
+            <div className="mt-0.5 text-[11px] text-ink-mute">
+              あなたから見て:{" "}
+              <span className="font-mincho text-ink-soft">{kinshipLabel}</span>
+            </div>
+          )}
         </div>
         <button
           type="button"

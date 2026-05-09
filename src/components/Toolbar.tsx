@@ -18,6 +18,7 @@ type Props = {
   onOpenTimeline: () => void;
   onExportPng: () => void;
   onExportPdf: () => void;
+  onOpenSelfPicker: () => void;
   persons: Person[];
   canImport: boolean;
   canAddPerson: boolean;
@@ -39,6 +40,7 @@ export function Toolbar({
   onOpenTimeline,
   onExportPng,
   onExportPdf,
+  onOpenSelfPicker,
   persons,
   canImport,
   canAddPerson,
@@ -186,6 +188,35 @@ export function Toolbar({
                       <line x1="3" y1="18" x2="21" y2="18" />
                     </svg>
                     年表
+                  </button>
+                </li>
+              )}
+              {current && (
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenSelfPicker();
+                      setOpen(false);
+                    }}
+                    className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-ink-soft transition hover:bg-washi-warm hover:text-ink"
+                  >
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="text-ink-mute"
+                      aria-hidden
+                    >
+                      <circle cx="12" cy="8" r="4" />
+                      <path d="M4 21c1-4 4-7 8-7s7 3 8 7" />
+                    </svg>
+                    自分を設定
                   </button>
                 </li>
               )}

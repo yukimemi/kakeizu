@@ -6,6 +6,10 @@ import { computeAge } from "../lib/age";
 export type PersonNodeData = {
   person: Person;
   selected?: boolean;
+  // Kinship label viewed from the user-designated 「自分」, computed in
+  // TreePage and forwarded so the node can render it as a small seal.
+  // `"あなた"` when the node is the self person itself.
+  kinship?: string | null;
 };
 
 const genderTheme: Record<
@@ -35,8 +39,9 @@ const genderTheme: Record<
 };
 
 export function PersonNode({ data, selected }: NodeProps) {
-  const { person } = data as unknown as PersonNodeData;
+  const { person, kinship } = data as unknown as PersonNodeData;
   const fullName = `${person.lastName} ${person.firstName}`.trim();
+  const isSelf = kinship === "あなた";
   const kana =
     person.lastNameKana || person.firstNameKana
       ? `${person.lastNameKana ?? ""} ${person.firstNameKana ?? ""}`.trim()
@@ -268,6 +273,34 @@ export function PersonNode({ data, selected }: NodeProps) {
           title="故人"
         >
           故
+        </span>
+      )}
+      {kinship && (
+        <span
+          style={{
+            position: "absolute",
+            top: -7,
+            left: -7,
+            minWidth: 24,
+            padding: "3px 6px",
+            background: isSelf
+              ? "linear-gradient(135deg, #2A416E, #1F2F54)"
+              : "linear-gradient(135deg, #C73B2C, #A52A1F)",
+            color: "#F8F3E7",
+            fontFamily: '"Shippori Mincho", serif',
+            fontSize: 10,
+            fontWeight: 600,
+            letterSpacing: "0.08em",
+            borderRadius: 3,
+            textAlign: "center",
+            boxShadow:
+              "inset 0 0 0 1px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(26, 23, 22, 0.20)",
+            lineHeight: 1.2,
+            whiteSpace: "nowrap",
+          }}
+          title={isSelf ? "あなた" : `あなたから見て: ${kinship}`}
+        >
+          {isSelf ? "己" : kinship}
         </span>
       )}
     </div>

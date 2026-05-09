@@ -33,7 +33,10 @@ import { AuditHistoryDialog } from "../components/AuditHistoryDialog";
 import { SearchDialog } from "../components/SearchDialog";
 import { BirthdaysDialog } from "../components/BirthdaysDialog";
 import { TimelineDialog } from "../components/TimelineDialog";
+import { SelfPickerDialog } from "../components/SelfPickerDialog";
 import { exportTreeAsPdf, exportTreeAsPng } from "../lib/export";
+import { findKinship } from "../lib/kinship";
+import { getSelfPersonId, setSelfPersonId } from "../lib/selfPerson";
 import type { Actor } from "../data/audit";
 
 const nodeTypes = { person: PersonNode, couple: CoupleNode };
@@ -69,8 +72,11 @@ function TreePageInner() {
   const [showSearch, setShowSearch] = useState(false);
   const [showBirthdays, setShowBirthdays] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
+  const [showSelfPicker, setShowSelfPicker] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const flowWrapperRef = useRef<HTMLDivElement>(null);
+
+  const [selfPersonId, setSelfPersonIdState] = useState<string | null>(null);
 
   const actor: Actor = {
     uid,
@@ -194,12 +200,17 @@ function TreePageInner() {
       return persons.map((p) => {
         const existing = prevById.get(p.id);
         const pos = autoPositions[p.id] ?? { x: 0, y: 0 };
+        const kinship = selfPersonId
+          ? selfPersonId === p.id
+            ? "あなた"
+            : findKinship(selfPersonId, p.id, persons, relationships)
+          : null;
         return {
           ...(existing ?? {}),
           id: p.id,
           type: "person",
           position: pos,
-          data: { person: p },
+          data: { person: p, kinship },
           draggable: false,
           selected: p.id === selectedId,
           width: NODE_WIDTH,
@@ -208,7 +219,7 @@ function TreePageInner() {
         };
       });
     });
-  }, [persons, autoPositions, selectedId]);
+  }, [persons, autoPositions, selectedId, selfPersonId, relationships]);
 
   // Build couple lookup and synthetic couple connector nodes.
   const { couples, coupleOfPerson } = useMemo(() => {
@@ -494,6 +505,23 @@ function TreePageInner() {
 
   const onPaneClick = useCallback(() => setSelectedId(null), []);
 
+  useEffect(() => {
+    if (!treeId) {
+      setSelfPersonIdState(null);
+      return;
+    }
+    setSelfPersonIdState(getSelfPersonId(uid, treeId));
+  }, [uid, treeId]);
+
+  const updateSelf = useCallback(
+    (personId: string | null) => {
+      if (!treeId) return;
+      setSelfPersonId(uid, treeId, personId);
+      setSelfPersonIdState(personId);
+    },
+    [uid, treeId],
+  );
+
   const runExport = useCallback(
     async (kind: "png" | "pdf") => {
       const wrapper = flowWrapperRef.current;
@@ -546,6 +574,7 @@ function TreePageInner() {
         onOpenTimeline={() => setShowTimeline(true)}
         onExportPng={() => void runExport("png")}
         onExportPdf={() => void runExport("pdf")}
+        onOpenSelfPicker={() => setShowSelfPicker(true)}
         persons={persons}
         canImport={canEdit && trees.length >= 2}
         canAddPerson={!!treeId && canEdit}
@@ -591,6 +620,7 @@ function TreePageInner() {
             relationships={relationships}
             canEdit={canEdit}
             actor={actor}
+            selfPersonId={selfPersonId}
             onClose={() => setSelectedId(null)}
           />
         )}
@@ -637,6 +667,15 @@ function TreePageInner() {
               );
             }
           }}
+        />
+      )}
+      {showSelfPicker && (
+        <SelfPickerDialog
+          persons={persons}
+          currentSelfId={selfPersonId}
+          onPick={(id) => updateSelf(id)}
+          onClear={() => updateSelf(null)}
+          onClose={() => setShowSelfPicker(false)}
         />
       )}
       {showTimeline && (
