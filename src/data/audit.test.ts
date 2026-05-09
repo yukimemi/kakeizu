@@ -5,7 +5,8 @@ import {
   buildPersonUpdateEvent,
   buildRelationshipCreateEvent,
   buildRelationshipDeleteEvent,
-  buildRestoreEvent,
+  buildRevertEvent,
+  collectRevertedIds,
   computeRevertPlan,
   diffPersonFields,
   filterActive,
@@ -228,8 +229,8 @@ describe("buildRelationshipDeleteEvent", () => {
   });
 });
 
-describe("buildRestoreEvent", () => {
-  it("links back to the original event via revertOfId and uses 復元 summary", () => {
+describe("buildRevertEvent", () => {
+  it("turns a delete event into a restore event", () => {
     const orig: AuditEvent = {
       id: "ev1",
       treeId: TREE,
@@ -241,17 +242,66 @@ describe("buildRestoreEvent", () => {
       before: { lastName: "山田", firstName: "太郎" },
       summary: "山田 太郎 を削除",
     };
-    const e = buildRestoreEvent({
-      treeId: TREE,
-      actor: ACTOR,
-      origEvent: orig,
-    });
+    const e = buildRevertEvent({ treeId: TREE, actor: ACTOR, origEvent: orig });
     expect(e.type).toBe("restore");
-    expect(e.targetType).toBe("person");
-    expect(e.targetId).toBe("p1");
     expect(e.revertOfId).toBe("ev1");
     expect(e.summary).toContain("復元");
     expect(e.summary).toContain("山田");
+  });
+
+  it("turns a create event into a delete event", () => {
+    const orig: AuditEvent = {
+      id: "ev2",
+      treeId: TREE,
+      ts: 0,
+      actor: "x",
+      type: "create",
+      targetType: "person",
+      targetId: "p1",
+      after: { lastName: "佐藤", firstName: "花子" },
+      summary: "佐藤 花子 を追加",
+    };
+    const e = buildRevertEvent({ treeId: TREE, actor: ACTOR, origEvent: orig });
+    expect(e.type).toBe("delete");
+    expect(e.revertOfId).toBe("ev2");
+    expect(e.before).toMatchObject({ lastName: "佐藤", firstName: "花子" });
+    expect(e.summary).toContain("削除");
+  });
+
+  it("turns an update event into an inverse update event", () => {
+    const orig: AuditEvent = {
+      id: "ev3",
+      treeId: TREE,
+      ts: 0,
+      actor: "x",
+      type: "update",
+      targetType: "person",
+      targetId: "p1",
+      before: { lastName: "山田", firstName: "太郎", address: "東京" },
+      after: { lastName: "山田", firstName: "太郎", address: "大阪" },
+      summary: "山田 太郎 を編集 (住所)",
+    };
+    const e = buildRevertEvent({ treeId: TREE, actor: ACTOR, origEvent: orig });
+    expect(e.type).toBe("update");
+    expect(e.revertOfId).toBe("ev3");
+    expect((e.before as Record<string, unknown>).address).toBe("大阪");
+    expect((e.after as Record<string, unknown>).address).toBe("東京");
+  });
+
+  it("throws for restore events (cannot revert a revert)", () => {
+    const orig: AuditEvent = {
+      id: "ev4",
+      treeId: TREE,
+      ts: 0,
+      actor: "x",
+      type: "restore",
+      targetType: "person",
+      targetId: "p1",
+      summary: "復元",
+    };
+    expect(() =>
+      buildRevertEvent({ treeId: TREE, actor: ACTOR, origEvent: orig }),
+    ).toThrow();
   });
 });
 
@@ -304,10 +354,104 @@ describe("computeRevertPlan", () => {
     expect(plan).toEqual({ kind: "restoreRelationship", relationshipId: "r1" });
   });
 
-  it("returns null for create / update / restore events (Phase 1 only reverts deletes)", () => {
-    expect(computeRevertPlan(baseEvent({ type: "create" }))).toBeNull();
-    expect(computeRevertPlan(baseEvent({ type: "update" }))).toBeNull();
+  it("returns softDeletePerson plan for a person create event", () => {
+    const plan = computeRevertPlan(
+      baseEvent({ type: "create", targetType: "person", targetId: "p1" }),
+    );
+    expect(plan).toEqual({ kind: "softDeletePerson", personId: "p1" });
+  });
+
+  it("returns softDeleteRelationship plan for a relationship create event", () => {
+    const plan = computeRevertPlan(
+      baseEvent({
+        type: "create",
+        targetType: "relationship",
+        targetId: "r1",
+      }),
+    );
+    expect(plan).toEqual({
+      kind: "softDeleteRelationship",
+      relationshipId: "r1",
+    });
+  });
+
+  it("returns rollbackPersonUpdate with before-values for diffed fields", () => {
+    const plan = computeRevertPlan(
+      baseEvent({
+        type: "update",
+        targetType: "person",
+        targetId: "p1",
+        before: {
+          lastName: "山田",
+          firstName: "太郎",
+          address: "東京",
+        },
+        after: {
+          lastName: "山田",
+          firstName: "太郎",
+          address: "大阪",
+          memo: "メモ",
+        },
+      }),
+    );
+    expect(plan).not.toBeNull();
+    if (plan && plan.kind === "rollbackPersonUpdate") {
+      expect(plan.personId).toBe("p1");
+      // address was changed → before-value should be staged
+      expect(plan.fields.address).toBe("東京");
+      // memo was added in `after` → revert should clear it (undefined)
+      expect("memo" in plan.fields).toBe(true);
+      expect(plan.fields.memo).toBeUndefined();
+      // lastName / firstName unchanged → not in plan
+      expect("lastName" in plan.fields).toBe(false);
+      expect("firstName" in plan.fields).toBe(false);
+    } else {
+      throw new Error("expected rollbackPersonUpdate plan");
+    }
+  });
+
+  it("returns null for an update event with no diffed fields", () => {
+    const plan = computeRevertPlan(
+      baseEvent({
+        type: "update",
+        targetType: "person",
+        before: { lastName: "A", firstName: "B" },
+        after: { lastName: "A", firstName: "B" },
+      }),
+    );
+    expect(plan).toBeNull();
+  });
+
+  it("returns null for restore events (those are themselves the result of a revert)", () => {
     expect(computeRevertPlan(baseEvent({ type: "restore" }))).toBeNull();
+  });
+});
+
+describe("collectRevertedIds", () => {
+  const ev = (id: string, revertOfId?: string): AuditEvent => ({
+    id,
+    treeId: TREE,
+    ts: 0,
+    actor: "u",
+    type: "delete",
+    targetType: "person",
+    targetId: "p",
+    summary: "",
+    ...(revertOfId ? { revertOfId } : {}),
+  });
+
+  it("returns ids of events that another event has already reverted", () => {
+    const events = [ev("a"), ev("b", "a"), ev("c")];
+    expect(collectRevertedIds(events)).toEqual(new Set(["a"]));
+  });
+
+  it("returns an empty set when nothing has been reverted", () => {
+    expect(collectRevertedIds([ev("a"), ev("b")])).toEqual(new Set());
+  });
+
+  it("ignores duplicate revertOfId entries", () => {
+    const events = [ev("a"), ev("b", "a"), ev("c", "a")];
+    expect(collectRevertedIds(events)).toEqual(new Set(["a"]));
   });
 });
 

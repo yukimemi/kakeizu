@@ -126,4 +126,19 @@ export type RevertPlan =
   | {
       kind: "restoreRelationship";
       relationshipId: string;
+    }
+  | {
+      kind: "softDeletePerson";
+      personId: string;
+    }
+  | {
+      kind: "softDeleteRelationship";
+      relationshipId: string;
+    }
+  | {
+      kind: "rollbackPersonUpdate";
+      personId: string;
+      // Field values to restore. `undefined` means "clear this field"
+      // (i.e. it was added in the update being reverted).
+      fields: Record<string, unknown>;
     };

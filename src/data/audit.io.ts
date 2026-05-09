@@ -4,6 +4,7 @@ import {
   deleteField,
   doc,
   getDoc,
+  getDocs,
   onSnapshot,
   query,
   serverTimestamp,
@@ -17,14 +18,13 @@ import { useEffect, useState } from "react";
 import { db } from "../firebase";
 import type { AuditEvent, AuditEventInput } from "../types";
 import {
-  buildRestoreEvent,
+  buildRevertEvent,
   computeRevertPlan,
   type Actor,
 } from "./audit";
 
 const EVENTS_COL = "auditEvents";
 
-// Internal: write an audit event document. Stamps `ts` server-side.
 async function writeEvent(input: AuditEventInput): Promise<string> {
   const payload: Record<string, unknown> = { ...input, ts: serverTimestamp() };
   const ref = await addDoc(collection(db, EVENTS_COL), payload);
@@ -35,8 +35,6 @@ export async function logEvent(input: AuditEventInput): Promise<string> {
   return writeEvent(input);
 }
 
-// Subscribe to all audit events for a tree. Sort happens client-side so we
-// don't need a composite index. Caps at `limit` newest entries.
 export function useAuditEvents(treeId: string | undefined, limitN = 300) {
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,12 +78,14 @@ export function useAuditEvents(treeId: string | undefined, limitN = 300) {
   return { events, loading };
 }
 
+const cleared = (): { deletedAt: FieldValue; deletedBy: FieldValue } => ({
+  deletedAt: deleteField() as unknown as FieldValue,
+  deletedBy: deleteField() as unknown as FieldValue,
+});
+
 /**
- * Revert a previously-recorded event by applying the reverse action and
- * writing a new "restore" audit entry that links back to the original.
- *
- * Phase 1: only delete events can be reverted (computeRevertPlan returns null
- * for create / update / restore).
+ * Apply the inverse of a previously-recorded event and write a new audit
+ * entry that links back to the original via `revertOfId`.
  */
 export async function revertEvent(
   event: AuditEvent,
@@ -95,15 +95,14 @@ export async function revertEvent(
   if (!plan) {
     throw new Error("この操作は元に戻せません");
   }
+
   if (plan.kind === "restorePerson") {
     const ref = doc(db, "persons", plan.personId);
     const snap = await getDoc(ref);
     const batch = writeBatch(db);
     if (!snap.exists()) {
-      // The doc was hard-deleted somehow; recreate from the audit snapshot.
+      // Doc was hard-deleted somehow; recreate from the audit snapshot.
       const before = { ...(event.before ?? {}) };
-      // relatedRelationships is metadata, not a Person field — strip it before
-      // restoring the person doc.
       delete (before as Record<string, unknown>).relatedRelationships;
       batch.set(ref, {
         ...before,
@@ -112,19 +111,10 @@ export async function revertEvent(
         updatedAt: serverTimestamp(),
       });
     } else {
-      batch.update(ref, {
-        deletedAt: deleteField() as unknown as FieldValue,
-        deletedBy: deleteField() as unknown as FieldValue,
-        updatedAt: serverTimestamp(),
-      });
+      batch.update(ref, { ...cleared(), updatedAt: serverTimestamp() });
     }
-    // Restore relationships that were soft-deleted alongside the person.
     for (const relId of plan.relationshipIds) {
-      const relRef = doc(db, "relationships", relId);
-      batch.update(relRef, {
-        deletedAt: deleteField() as unknown as FieldValue,
-        deletedBy: deleteField() as unknown as FieldValue,
-      });
+      batch.update(doc(db, "relationships", relId), cleared());
     }
     await batch.commit();
   } else if (plan.kind === "restoreRelationship") {
@@ -138,13 +128,70 @@ export async function revertEvent(
         createdAt: serverTimestamp(),
       });
     } else {
-      await updateDoc(ref, {
-        deletedAt: deleteField() as unknown as FieldValue,
-        deletedBy: deleteField() as unknown as FieldValue,
+      await updateDoc(ref, cleared());
+    }
+  } else if (plan.kind === "softDeletePerson") {
+    // Reverting a "create person" event = soft-delete the person now, plus
+    // every active relationship that touches them, in a single batch.
+    const personRef = doc(db, "persons", plan.personId);
+    const psnap = await getDoc(personRef);
+    if (!psnap.exists()) throw new Error("人物が見つかりません");
+
+    const [a, b] = await Promise.all([
+      getDocs(
+        query(
+          collection(db, "relationships"),
+          where("treeId", "==", event.treeId),
+          where("from", "==", plan.personId),
+        ),
+      ),
+      getDocs(
+        query(
+          collection(db, "relationships"),
+          where("treeId", "==", event.treeId),
+          where("to", "==", plan.personId),
+        ),
+      ),
+    ]);
+    const seen = new Set<string>();
+    const relIds: string[] = [];
+    for (const d of [...a.docs, ...b.docs]) {
+      if (seen.has(d.id)) continue;
+      seen.add(d.id);
+      const data = d.data() as { deletedAt?: unknown };
+      if (data.deletedAt != null) continue;
+      relIds.push(d.id);
+    }
+
+    const batch = writeBatch(db);
+    for (const id of relIds) {
+      batch.update(doc(db, "relationships", id), {
+        deletedAt: serverTimestamp(),
+        deletedBy: actor.uid,
       });
     }
+    batch.update(personRef, {
+      deletedAt: serverTimestamp(),
+      deletedBy: actor.uid,
+      updatedAt: serverTimestamp(),
+    });
+    await batch.commit();
+  } else if (plan.kind === "softDeleteRelationship") {
+    await updateDoc(doc(db, "relationships", plan.relationshipId), {
+      deletedAt: serverTimestamp(),
+      deletedBy: actor.uid,
+    });
+  } else if (plan.kind === "rollbackPersonUpdate") {
+    const update: Record<string, unknown> = { updatedAt: serverTimestamp() };
+    for (const [k, v] of Object.entries(plan.fields)) {
+      if (v === undefined) {
+        update[k] = deleteField();
+      } else {
+        update[k] = v;
+      }
+    }
+    await updateDoc(doc(db, "persons", plan.personId), update);
   }
 
-  await writeEvent(buildRestoreEvent({ treeId: event.treeId, actor, origEvent: event }));
+  await writeEvent(buildRevertEvent({ treeId: event.treeId, actor, origEvent: event }));
 }
-

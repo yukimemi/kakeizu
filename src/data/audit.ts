@@ -352,51 +352,139 @@ export function buildRelationshipDeleteEvent(args: {
   };
 }
 
-export function buildRestoreEvent(args: {
+/**
+ * Produce the audit event that should be written when reverting `origEvent`.
+ *
+ *  - delete  → restore (with the deleted snapshot as `after`)
+ *  - create  → delete  (with the created snapshot as `before`)
+ *  - update  → update  (with `before`/`after` swapped)
+ *
+ * Always tagged with `revertOfId` so the history UI can pair them up.
+ */
+export function buildRevertEvent(args: {
   treeId: string;
   actor: Actor;
   origEvent: AuditEvent;
 }): AuditEventInput {
   const { origEvent } = args;
-  // Restore re-uses the original `before` snapshot (the state to restore to)
-  // as `after` so the history list shows the same identity for the restored
-  // record.
+  if (origEvent.type === "restore") {
+    throw new Error("この操作は元に戻せません");
+  }
+  if (origEvent.type === "delete") {
+    const after = origEvent.before;
+    return {
+      ...baseEvent(
+        args.treeId,
+        args.actor,
+        "restore",
+        origEvent.targetType,
+        origEvent.targetId,
+      ),
+      ...(after ? { after } : {}),
+      summary: summarizeEvent({
+        type: "restore",
+        targetType: origEvent.targetType,
+        after,
+      }),
+      revertOfId: origEvent.id,
+    };
+  }
+  if (origEvent.type === "create") {
+    const before = origEvent.after;
+    return {
+      ...baseEvent(
+        args.treeId,
+        args.actor,
+        "delete",
+        origEvent.targetType,
+        origEvent.targetId,
+      ),
+      ...(before ? { before } : {}),
+      summary: summarizeEvent({
+        type: "delete",
+        targetType: origEvent.targetType,
+        before,
+      }),
+      revertOfId: origEvent.id,
+    };
+  }
+  // update → flipped update
+  const before = origEvent.after;
   const after = origEvent.before;
-  const summary = summarizeEvent({
-    type: "restore",
-    targetType: origEvent.targetType,
-    after,
-  });
   return {
     ...baseEvent(
       args.treeId,
       args.actor,
-      "restore",
+      "update",
       origEvent.targetType,
       origEvent.targetId,
     ),
+    ...(before ? { before } : {}),
     ...(after ? { after } : {}),
-    summary,
+    summary: summarizeEvent({
+      type: "update",
+      targetType: origEvent.targetType,
+      before,
+      after,
+    }),
     revertOfId: origEvent.id,
   };
+}
+
+// Returns ids of events that another event has already reverted. Used by
+// the history UI to grey out the "元に戻す" button on events that have
+// already been undone — so a single create/delete can't be reverted twice.
+export function collectRevertedIds(events: AuditEvent[]): Set<string> {
+  const out = new Set<string>();
+  for (const e of events) {
+    if (e.revertOfId) out.add(e.revertOfId);
+  }
+  return out;
 }
 
 // ---------- revert planning ----------
 
 export function computeRevertPlan(e: AuditEvent): RevertPlan | null {
-  if (e.type !== "delete") return null;
-  if (e.targetType === "person") {
-    const related = (e.before?.relatedRelationships as
-      | RelatedRelationshipSnapshot[]
-      | undefined) ?? [];
-    return {
-      kind: "restorePerson",
-      personId: e.targetId,
-      relationshipIds: related.map((r) => r.id),
-    };
+  if (e.type === "delete") {
+    if (e.targetType === "person") {
+      const related = (e.before?.relatedRelationships as
+        | RelatedRelationshipSnapshot[]
+        | undefined) ?? [];
+      return {
+        kind: "restorePerson",
+        personId: e.targetId,
+        relationshipIds: related.map((r) => r.id),
+      };
+    }
+    if (e.targetType === "relationship") {
+      return { kind: "restoreRelationship", relationshipId: e.targetId };
+    }
   }
-  if (e.targetType === "relationship") {
-    return { kind: "restoreRelationship", relationshipId: e.targetId };
+  if (e.type === "create") {
+    if (e.targetType === "person") {
+      return { kind: "softDeletePerson", personId: e.targetId };
+    }
+    if (e.targetType === "relationship") {
+      return { kind: "softDeleteRelationship", relationshipId: e.targetId };
+    }
+  }
+  if (e.type === "update" && e.targetType === "person" && e.before && e.after) {
+    const fields: Record<string, unknown> = {};
+    for (const f of PERSON_FIELDS) {
+      const bv = e.before[f];
+      const av = e.after[f];
+      const equal =
+        typeof bv === "object" || typeof av === "object"
+          ? deepEqual(norm(bv), norm(av))
+          : norm(bv) === norm(av);
+      if (!equal) {
+        // Stage the before value. `undefined` here means "the field was
+        // added in this update; clear it on revert".
+        fields[f] = bv;
+      }
+    }
+    if (Object.keys(fields).length === 0) return null;
+    return { kind: "rollbackPersonUpdate", personId: e.targetId, fields };
   }
   return null;
 }

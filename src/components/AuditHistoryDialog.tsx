@@ -2,7 +2,7 @@ import { useState } from "react";
 import { format, formatDistanceToNow } from "date-fns";
 import { ja } from "date-fns/locale";
 import { revertEvent, useAuditEvents } from "../data/audit.io";
-import { computeRevertPlan } from "../data/audit";
+import { collectRevertedIds, computeRevertPlan } from "../data/audit";
 import type { AuditEvent } from "../types";
 
 type Props = {
@@ -33,13 +33,14 @@ export function AuditHistoryDialog({
   onClose,
 }: Props) {
   const { events, loading } = useAuditEvents(treeId);
+  const revertedIds = collectRevertedIds(events);
   const [revertBusy, setRevertBusy] = useState<string | null>(null);
   const [revertError, setRevertError] = useState<string | null>(null);
   const [revertOk, setRevertOk] = useState<string | null>(null);
 
   const onRevert = async (e: AuditEvent) => {
     if (!canEdit) return;
-    if (!confirm(`${e.summary} を元に戻しますか？`)) return;
+    if (!confirm(`次の操作を元に戻しますか？\n\n${e.summary}`)) return;
     setRevertError(null);
     setRevertOk(null);
     setRevertBusy(e.id);
@@ -121,6 +122,7 @@ export function AuditHistoryDialog({
                   key={e.id}
                   event={e}
                   canEdit={canEdit}
+                  alreadyReverted={revertedIds.has(e.id)}
                   busy={revertBusy === e.id}
                   onRevert={() => void onRevert(e)}
                 />
@@ -130,8 +132,8 @@ export function AuditHistoryDialog({
         </div>
 
         <div className="border-t border-ink-line bg-washi-warm/30 px-5 py-3 text-[11px] leading-5 text-ink-mute">
-          現在は <strong className="text-ink-soft">削除</strong>{" "}
-          のみ「元に戻す」に対応しています。編集内容の取り消しは順次対応予定。
+          各操作の右にある「元に戻す」で、その時点の状態に戻せます。<br />
+          復元ずみの操作（同色のリンク先がある行）は再度の取り消しはできません。
         </div>
       </div>
     </div>
@@ -141,11 +143,13 @@ export function AuditHistoryDialog({
 function EventRow({
   event,
   canEdit,
+  alreadyReverted,
   busy,
   onRevert,
 }: {
   event: AuditEvent;
   canEdit: boolean;
+  alreadyReverted: boolean;
   busy: boolean;
   onRevert: () => void;
 }) {
@@ -158,7 +162,10 @@ function EventRow({
     event.actorEmail ||
     `${event.actor.slice(0, 6)}…`;
   const canRevert =
-    canEdit && computeRevertPlan(event) !== null && !event.revertOfId;
+    canEdit &&
+    computeRevertPlan(event) !== null &&
+    !event.revertOfId &&
+    !alreadyReverted;
 
   return (
     <li className="rounded-md border border-ink-line/60 bg-paper px-3 py-2.5 transition hover:border-ink-line">
@@ -180,6 +187,11 @@ function EventRow({
           >
             {busy ? "戻し中…" : "元に戻す"}
           </button>
+        )}
+        {alreadyReverted && !event.revertOfId && (
+          <span className="flex-none rounded-md border border-ink-line/60 bg-washi-warm/40 px-2 py-1 text-[10px] tracking-wider2 text-ink-faint">
+            戻し済
+          </span>
         )}
       </div>
       <div className="mt-1 flex items-center gap-2 text-[11px] text-ink-mute">
