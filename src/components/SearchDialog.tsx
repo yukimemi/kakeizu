@@ -34,7 +34,7 @@ export function SearchDialog({ persons, onPick, onClose }: Props) {
       onClick={onClose}
     >
       <div
-        className="flex max-h-[80vh] w-full max-w-md animate-fade-in-up flex-col overflow-hidden rounded-xl border border-ink-line bg-paper shadow-paper-lg"
+        className="flex max-h-[80vh] max-h-[80dvh] w-full max-w-md animate-fade-in-up flex-col overflow-hidden rounded-xl border border-ink-line bg-paper shadow-paper-lg"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-3 border-b border-ink-line bg-washi-warm/50 px-4 py-3">
