@@ -537,7 +537,7 @@ function TreePageInner() {
             panOnDrag
           >
             <Background gap={24} size={1} />
-            <Controls position="bottom-right" />
+            <Controls position="bottom-right" showInteractive={false} />
             <MiniMap
               position="bottom-left"
               pannable
