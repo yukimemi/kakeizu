@@ -207,7 +207,7 @@ export function PersonDetailPanel({
       </div>
 
       {canEdit && tab === "info" && (
-        <div className="flex flex-col gap-2 border-t border-ink-line bg-washi-warm/40 px-5 py-3">
+        <div className="flex flex-col gap-2 border-t border-ink-line bg-washi-warm/40 px-5 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           {saveStatus &&
             (saveStatus.ok ? (
               <div className="text-center text-xs tracking-wider2 text-shu">

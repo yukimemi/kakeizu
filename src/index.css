@@ -8,6 +8,9 @@ html,
 body,
 #root {
   height: 100%;
+  /* svh = the smallest viewport height (address-bar-shown). Keeps the
+     bottom of the layout above mobile chrome's UI bars (Edge / Safari). */
+  height: 100svh;
   margin: 0;
 }
 
