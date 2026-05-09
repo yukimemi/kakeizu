@@ -19,6 +19,20 @@ export type Tree = {
   updatedAt?: number;
 };
 
+export type ContactEntry = { label?: string; value: string };
+
+export type SocialService =
+  | "x"
+  | "instagram"
+  | "facebook"
+  | "line"
+  | "youtube"
+  | "tiktok"
+  | "threads"
+  | "github";
+
+export type Socials = Partial<Record<SocialService, string>>;
+
 export type Person = {
   id: string;
   treeId: string;
@@ -32,15 +46,19 @@ export type Person = {
   // Crop/pan state for the avatar — x/y are percentage offsets, scale is a
   // multiplier (1 = fit, default). Only meaningful while photoUrl is set.
   photoTransform?: { x: number; y: number; scale: number };
+  postalCode?: string;
   address?: string;
+  phones?: ContactEntry[];
+  emails?: ContactEntry[];
+  socials?: Socials;
+  memo?: string;
+  // Legacy single-value fields, retained for back-compat with persons created
+  // before the structured contact fields were introduced. Read once into the
+  // new shape on load; new writes only touch the new fields.
   phone?: string;
   email?: string;
   sns?: string;
-  memo?: string;
   position?: { x: number; y: number };
-  // Set when this person was imported from another tree. Lets the import
-  // dialog tell "already imported" from "new" and detect drift to offer
-  // re-sync.
   importedFromId?: string;
   createdAt?: number;
   updatedAt?: number;

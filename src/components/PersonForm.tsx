@@ -1,12 +1,24 @@
-import { useRef, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useEffect, useRef, useState } from "react";
+import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import type { Person } from "../types";
 import { deletePersonPhoto, uploadPersonPhoto } from "../data/storage";
+import {
+  formatPostalCode,
+  isCompletePostalCode,
+  lookupPostalCode,
+  normalizePostalCode,
+} from "../lib/postalCode";
+import { SOCIAL_SERVICES, SocialIcon, buildSocialUrl } from "../lib/socials";
 
 type PhotoTransform = { x: number; y: number; scale: number };
 const DEFAULT_TRANSFORM: PhotoTransform = { x: 0, y: 0, scale: 1 };
+
+const contactEntrySchema = z.object({
+  label: z.string().optional(),
+  value: z.string().optional(),
+});
 
 const schema = z.object({
   lastName: z.string().min(1, "姓は必須です"),
@@ -15,14 +27,15 @@ const schema = z.object({
   firstNameKana: z.string().optional(),
   birthDate: z.string().optional(),
   gender: z.enum(["male", "female", "other"]).optional().or(z.literal("")),
+  postalCode: z.string().optional(),
   address: z.string().optional(),
-  phone: z.string().optional(),
-  email: z.string().email("メール形式が不正です").optional().or(z.literal("")),
-  sns: z.string().optional(),
+  phones: z.array(contactEntrySchema),
+  emails: z.array(contactEntrySchema),
+  socials: z.record(z.string(), z.string().optional()),
   memo: z.string().optional(),
 });
 
-export type PersonFormValues = z.infer<typeof schema>;
+type FormValues = z.infer<typeof schema>;
 
 type Props = {
   treeId: string;
@@ -34,6 +47,43 @@ type Props = {
   readOnly?: boolean;
 };
 
+function buildDefaultValues(initial: Person): FormValues {
+  // Read structured fields if present, otherwise fall back to legacy single
+  // values so existing person docs render correctly in the new form.
+  const phones =
+    initial.phones && initial.phones.length > 0
+      ? initial.phones.map((p) => ({ label: p.label ?? "", value: p.value }))
+      : initial.phone
+        ? [{ label: "", value: initial.phone }]
+        : [];
+  const emails =
+    initial.emails && initial.emails.length > 0
+      ? initial.emails.map((e) => ({ label: e.label ?? "", value: e.value }))
+      : initial.email
+        ? [{ label: "", value: initial.email }]
+        : [];
+  const socials: Record<string, string> = {};
+  if (initial.socials) {
+    for (const [k, v] of Object.entries(initial.socials)) {
+      if (v) socials[k] = v;
+    }
+  }
+  return {
+    lastName: initial.lastName ?? "",
+    firstName: initial.firstName ?? "",
+    lastNameKana: initial.lastNameKana ?? "",
+    firstNameKana: initial.firstNameKana ?? "",
+    birthDate: initial.birthDate ?? "",
+    gender: (initial.gender as FormValues["gender"]) ?? "",
+    postalCode: initial.postalCode ?? "",
+    address: initial.address ?? "",
+    phones,
+    emails,
+    socials,
+    memo: initial.memo ?? "",
+  };
+}
+
 export function PersonForm({
   treeId,
   initial,
@@ -44,23 +94,18 @@ export function PersonForm({
   const {
     register,
     handleSubmit,
+    control,
+    setValue,
+    getValues,
+    watch,
     formState: { errors, isSubmitting },
-  } = useForm<PersonFormValues>({
+  } = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: {
-      lastName: initial.lastName ?? "",
-      firstName: initial.firstName ?? "",
-      lastNameKana: initial.lastNameKana ?? "",
-      firstNameKana: initial.firstNameKana ?? "",
-      birthDate: initial.birthDate ?? "",
-      gender: (initial.gender as PersonFormValues["gender"]) ?? "",
-      address: initial.address ?? "",
-      phone: initial.phone ?? "",
-      email: initial.email ?? "",
-      sns: initial.sns ?? "",
-      memo: initial.memo ?? "",
-    },
+    defaultValues: buildDefaultValues(initial),
   });
+
+  const phonesArr = useFieldArray({ control, name: "phones" });
+  const emailsArr = useFieldArray({ control, name: "emails" });
 
   const [photoUrl, setPhotoUrl] = useState<string | undefined>(
     initial.photoUrl,
@@ -72,6 +117,9 @@ export function PersonForm({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<number | null>(null);
+  const [zipBusy, setZipBusy] = useState(false);
+  const [zipError, setZipError] = useState<string | null>(null);
+  const [zipNote, setZipNote] = useState<string | null>(null);
 
   const onPickPhoto = async (file: File) => {
     setUploading(true);
@@ -96,10 +144,71 @@ export function PersonForm({
     void deletePersonPhoto(old);
   };
 
+  const onLookupZip = async () => {
+    const raw = getValues("postalCode") ?? "";
+    setZipError(null);
+    setZipNote(null);
+    if (!isCompletePostalCode(raw)) {
+      setZipError("7 桁の郵便番号を入力してください");
+      return;
+    }
+    setZipBusy(true);
+    try {
+      const result = await lookupPostalCode(raw);
+      if (!result) {
+        setZipError("一致する住所が見つかりませんでした");
+        return;
+      }
+      // Preserve any building / unit details the user has already typed
+      // beyond the prefilled prefecture+city+town.
+      const current = getValues("address") ?? "";
+      const prefix = result.full;
+      const next =
+        current && current.startsWith(prefix)
+          ? current
+          : current
+            ? `${prefix} ${current.trim()}`.trim()
+            : prefix;
+      setValue("address", next, { shouldDirty: true });
+      setZipNote(`${result.full} を反映しました`);
+    } catch (e) {
+      setZipError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setZipBusy(false);
+    }
+  };
+
+  // Keep the postal-code input always normalised+formatted (1234567 → 123-4567).
+  const postalRaw = watch("postalCode");
+  useEffect(() => {
+    const formatted = formatPostalCode(postalRaw ?? "");
+    if (formatted !== postalRaw) {
+      setValue("postalCode", formatted, { shouldDirty: false });
+    }
+  }, [postalRaw, setValue]);
+
   const submit = handleSubmit(
     async (v) => {
       setSaveError(null);
       try {
+        // Strip empty contact entries; normalise label="" → undefined.
+        const phones = v.phones
+          .filter((p) => p.value && p.value.trim() !== "")
+          .map((p) => ({
+            value: p.value!.trim(),
+            ...(p.label && p.label.trim() ? { label: p.label.trim() } : {}),
+          }));
+        const emails = v.emails
+          .filter((e) => e.value && e.value.trim() !== "")
+          .map((e) => ({
+            value: e.value!.trim(),
+            ...(e.label && e.label.trim() ? { label: e.label.trim() } : {}),
+          }));
+        const socials: Record<string, string> = {};
+        for (const def of SOCIAL_SERVICES) {
+          const handle = v.socials?.[def.id]?.trim();
+          if (handle) socials[def.id] = handle;
+        }
         await onSubmit({
           lastName: v.lastName,
           firstName: v.firstName,
@@ -107,10 +216,13 @@ export function PersonForm({
           firstNameKana: v.firstNameKana || undefined,
           birthDate: v.birthDate || undefined,
           gender: v.gender ? (v.gender as Person["gender"]) : undefined,
+          postalCode: v.postalCode
+            ? formatPostalCode(v.postalCode) || undefined
+            : undefined,
           address: v.address || undefined,
-          phone: v.phone || undefined,
-          email: v.email || undefined,
-          sns: v.sns || undefined,
+          phones: phones.length > 0 ? phones : undefined,
+          emails: emails.length > 0 ? emails : undefined,
+          socials: Object.keys(socials).length > 0 ? socials : undefined,
           memo: v.memo || undefined,
           photoUrl,
           photoTransform: photoUrl ? photoTransform : undefined,
@@ -199,65 +311,192 @@ export function PersonForm({
       </div>
 
       <fieldset disabled={readOnly} className="contents">
-      <Row>
-        <Field label="姓 *" error={errors.lastName?.message}>
-          <input
-            {...register("lastName")}
-            className="input"
-            autoComplete="off"
-          />
-        </Field>
-        <Field label="名 *" error={errors.firstName?.message}>
-          <input
-            {...register("firstName")}
-            className="input"
-            autoComplete="off"
-          />
-        </Field>
-      </Row>
+        <Row>
+          <Field label="姓 *" error={errors.lastName?.message}>
+            <input
+              {...register("lastName")}
+              className="input"
+              autoComplete="off"
+            />
+          </Field>
+          <Field label="名 *" error={errors.firstName?.message}>
+            <input
+              {...register("firstName")}
+              className="input"
+              autoComplete="off"
+            />
+          </Field>
+        </Row>
 
-      <Row>
-        <Field label="姓 (ふりがな)">
-          <input {...register("lastNameKana")} className="input" />
-        </Field>
-        <Field label="名 (ふりがな)">
-          <input {...register("firstNameKana")} className="input" />
-        </Field>
-      </Row>
+        <Row>
+          <Field label="姓 (ふりがな)">
+            <input {...register("lastNameKana")} className="input" />
+          </Field>
+          <Field label="名 (ふりがな)">
+            <input {...register("firstNameKana")} className="input" />
+          </Field>
+        </Row>
 
-      <Row>
-        <Field label="生年月日">
-          <input type="date" {...register("birthDate")} className="input" />
-        </Field>
-        <Field label="性別">
-          <select {...register("gender")} className="input">
-            <option value="">未指定</option>
-            <option value="male">男性</option>
-            <option value="female">女性</option>
-            <option value="other">その他</option>
-          </select>
-        </Field>
-      </Row>
+        <Row>
+          <Field label="生年月日">
+            <input type="date" {...register("birthDate")} className="input" />
+          </Field>
+          <Field label="性別">
+            <select {...register("gender")} className="input">
+              <option value="">未指定</option>
+              <option value="male">男性</option>
+              <option value="female">女性</option>
+              <option value="other">その他</option>
+            </select>
+          </Field>
+        </Row>
 
-      <Field label="住所">
-        <input {...register("address")} className="input" />
-      </Field>
-      <Field label="電話番号">
-        <input {...register("phone")} className="input" />
-      </Field>
-      <Field label="メール" error={errors.email?.message}>
-        <input {...register("email")} className="input" />
-      </Field>
-      <Field label="SNS">
-        <input
-          {...register("sns")}
-          placeholder="@handle や URL など"
-          className="input"
-        />
-      </Field>
-      <Field label="メモ">
-        <textarea {...register("memo")} rows={3} className="input resize-none" />
-      </Field>
+        <SectionLabel>住所</SectionLabel>
+        <div className="flex flex-col gap-2">
+          <div className="flex items-end gap-2">
+            <Field label="郵便番号">
+              <div className="flex gap-1.5">
+                <input
+                  {...register("postalCode", {
+                    setValueAs: (v: string) =>
+                      v ? formatPostalCode(normalizePostalCode(v)) : "",
+                  })}
+                  inputMode="numeric"
+                  placeholder="123-4567"
+                  className="input w-32 font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={() => void onLookupZip()}
+                  disabled={zipBusy || readOnly}
+                  className="rounded-md border border-ink-line bg-washi-warm px-3 text-xs tracking-wider2 text-ink-soft transition hover:border-shu/40 hover:bg-shu-soft/30 hover:text-shu-deep disabled:opacity-50"
+                  title="住所を自動入力"
+                >
+                  {zipBusy ? "検索中…" : "住所検索"}
+                </button>
+              </div>
+            </Field>
+          </div>
+          {zipError && (
+            <p className="border-l-2 border-shu bg-shu-soft/30 px-2 py-1 text-[11px] text-shu-deep">
+              {zipError}
+            </p>
+          )}
+          {zipNote && !zipError && (
+            <p className="text-[11px] text-ink-mute">{zipNote}</p>
+          )}
+          <Field label="住所">
+            <input
+              {...register("address")}
+              placeholder="郵便番号で自動入力。番地・建物名は手入力"
+              className="input"
+            />
+          </Field>
+        </div>
+
+        <SectionLabel>電話番号</SectionLabel>
+        <div className="flex flex-col gap-2">
+          {phonesArr.fields.length === 0 && (
+            <p className="text-[11px] text-ink-faint">未登録</p>
+          )}
+          {phonesArr.fields.map((f, i) => (
+            <ContactRow
+              key={f.id}
+              labelPlaceholder="自宅 / 携帯 / 会社 など"
+              valuePlaceholder="例: 090-1234-5678"
+              valueProps={{
+                ...register(`phones.${i}.value`),
+                type: "tel",
+                inputMode: "tel",
+              }}
+              labelProps={register(`phones.${i}.label`)}
+              onRemove={() => phonesArr.remove(i)}
+              readOnly={readOnly}
+            />
+          ))}
+          {!readOnly && (
+            <button
+              type="button"
+              onClick={() => phonesArr.append({ label: "", value: "" })}
+              className="self-start text-[11px] tracking-wider2 text-shu hover:text-shu-deep hover:underline"
+            >
+              + 電話番号を追加
+            </button>
+          )}
+        </div>
+
+        <SectionLabel>メール</SectionLabel>
+        <div className="flex flex-col gap-2">
+          {emailsArr.fields.length === 0 && (
+            <p className="text-[11px] text-ink-faint">未登録</p>
+          )}
+          {emailsArr.fields.map((f, i) => (
+            <ContactRow
+              key={f.id}
+              labelPlaceholder="個人 / 仕事 など"
+              valuePlaceholder="example@example.com"
+              valueProps={{
+                ...register(`emails.${i}.value`),
+                type: "email",
+                inputMode: "email",
+              }}
+              labelProps={register(`emails.${i}.label`)}
+              onRemove={() => emailsArr.remove(i)}
+              readOnly={readOnly}
+            />
+          ))}
+          {!readOnly && (
+            <button
+              type="button"
+              onClick={() => emailsArr.append({ label: "", value: "" })}
+              className="self-start text-[11px] tracking-wider2 text-shu hover:text-shu-deep hover:underline"
+            >
+              + メールを追加
+            </button>
+          )}
+        </div>
+
+        <SectionLabel>SNS</SectionLabel>
+        <div className="flex flex-col gap-1.5">
+          {SOCIAL_SERVICES.map((def) => {
+            const handle = watch(`socials.${def.id}` as const);
+            const url = handle ? buildSocialUrl(def.id, handle) : null;
+            return (
+              <div
+                key={def.id}
+                className="flex items-center gap-2 rounded-md border border-ink-line/50 bg-paper px-2 py-1.5 transition focus-within:border-shu/40"
+              >
+                <span
+                  className="flex h-7 w-7 flex-none items-center justify-center rounded-md"
+                  style={{ backgroundColor: `${def.color}12` }}
+                  title={def.label}
+                >
+                  <SocialIcon service={def.id} size={16} />
+                </span>
+                <input
+                  {...register(`socials.${def.id}` as const)}
+                  placeholder={def.placeholder}
+                  className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-ink-faint"
+                />
+                {url && !readOnly && (
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex-none text-[11px] tracking-wider2 text-shu hover:text-shu-deep hover:underline"
+                    title={url}
+                  >
+                    開く ↗
+                  </a>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <Field label="メモ">
+          <textarea {...register("memo")} rows={3} className="input resize-none" />
+        </Field>
       </fieldset>
 
       {!readOnly && (
@@ -302,10 +541,81 @@ function Field({
         {label}
       </span>
       {children}
-      {error && (
-        <span className="text-[11px] text-shu-deep">{error}</span>
-      )}
+      {error && <span className="text-[11px] text-shu-deep">{error}</span>}
     </label>
+  );
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mt-2 flex items-center gap-2">
+      <span className="h-px flex-none w-3 bg-ink-line" />
+      <span className="text-[10px] font-medium uppercase tracking-widest2 text-ink-mute">
+        {children}
+      </span>
+      <span className="h-px flex-1 bg-ink-line" />
+    </div>
+  );
+}
+
+type ContactRowProps = {
+  labelPlaceholder: string;
+  valuePlaceholder: string;
+  valueProps: React.InputHTMLAttributes<HTMLInputElement> & {
+    name?: string;
+    onChange?: React.ChangeEventHandler<HTMLInputElement>;
+  };
+  labelProps: React.InputHTMLAttributes<HTMLInputElement> & {
+    name?: string;
+    onChange?: React.ChangeEventHandler<HTMLInputElement>;
+  };
+  onRemove: () => void;
+  readOnly?: boolean;
+};
+
+function ContactRow({
+  labelPlaceholder,
+  valuePlaceholder,
+  valueProps,
+  labelProps,
+  onRemove,
+  readOnly,
+}: ContactRowProps) {
+  return (
+    <div className="flex items-center gap-2">
+      <input
+        {...labelProps}
+        placeholder={labelPlaceholder}
+        className="input w-24 !py-1.5 !text-xs"
+      />
+      <input
+        {...valueProps}
+        placeholder={valuePlaceholder}
+        className="input flex-1 !py-1.5"
+      />
+      {!readOnly && (
+        <button
+          type="button"
+          onClick={onRemove}
+          className="flex-none rounded-md p-1 text-ink-mute transition hover:bg-shu-soft/30 hover:text-shu-deep"
+          aria-label="削除"
+          title="削除"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M18 6L6 18M6 6l12 12" />
+          </svg>
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -323,11 +633,6 @@ function PhotoEditor({
   const ref = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
   const startRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-
-  // x/y are stored as percentages of the image's own size (= container size,
-  // since the img is 100% width/height with object-fit: cover). 1px on screen
-  // corresponds to (100 / EDITOR_SIZE) percentage points. We convert when
-  // committing drag deltas so the saved values are size-independent.
   const pxToPct = 100 / EDITOR_SIZE;
 
   const onPointerDown = (e: React.PointerEvent) => {

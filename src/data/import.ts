@@ -36,11 +36,17 @@ const SYNCABLE_FIELDS = [
   "gender",
   "photoUrl",
   "photoTransform",
+  "postalCode",
   "address",
+  "phones",
+  "emails",
+  "socials",
+  "memo",
+  // Legacy fields are still synced so older imported persons keep their data
+  // until the source updates to the new shape.
   "phone",
   "email",
   "sns",
-  "memo",
 ] as const;
 
 const norm = (v: unknown) => (v == null || v === "" ? undefined : v);
