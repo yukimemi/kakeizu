@@ -33,6 +33,7 @@ const SYNCABLE_FIELDS = [
   "lastNameKana",
   "firstNameKana",
   "birthDate",
+  "deathDate",
   "gender",
   "photoUrl",
   "photoTransform",

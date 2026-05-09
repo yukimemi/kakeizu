@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import type { Tree } from "../types";
+import { birthdaysThisMonth } from "../lib/birthdays";
+import type { Person } from "../types";
 
 type Props = {
   onAddPerson: () => void;
@@ -11,8 +13,13 @@ type Props = {
   onOpenSettings: () => void;
   onOpenImport: () => void;
   onOpenHistory: () => void;
+  onOpenSearch: () => void;
+  onOpenBirthdays: () => void;
+  onOpenTimeline: () => void;
+  persons: Person[];
   canImport: boolean;
   canAddPerson: boolean;
+  canSearch: boolean;
 };
 
 export function Toolbar({
@@ -24,9 +31,15 @@ export function Toolbar({
   onOpenSettings,
   onOpenImport,
   onOpenHistory,
+  onOpenSearch,
+  onOpenBirthdays,
+  onOpenTimeline,
+  persons,
   canImport,
   canAddPerson,
+  canSearch,
 }: Props) {
+  const birthdayCount = birthdaysThisMonth(persons).length;
   const { user, logout } = useAuth();
   const [open, setOpen] = useState(false);
   const current = trees.find((t) => t.id === currentTreeId) ?? null;
@@ -145,6 +158,36 @@ export function Toolbar({
                   <button
                     type="button"
                     onClick={() => {
+                      onOpenTimeline();
+                      setOpen(false);
+                    }}
+                    className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-ink-soft transition hover:bg-washi-warm hover:text-ink"
+                  >
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="text-ink-mute"
+                      aria-hidden
+                    >
+                      <line x1="3" y1="6" x2="21" y2="6" />
+                      <line x1="3" y1="12" x2="21" y2="12" />
+                      <line x1="3" y1="18" x2="21" y2="18" />
+                    </svg>
+                    年表
+                  </button>
+                </li>
+              )}
+              {current && (
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => {
                       onOpenHistory();
                       setOpen(false);
                     }}
@@ -187,6 +230,47 @@ export function Toolbar({
           </ul>
         )}
       </div>
+
+      {/* Search */}
+      <button
+        type="button"
+        onClick={onOpenSearch}
+        disabled={!canSearch}
+        title="人物を検索"
+        aria-label="人物を検索"
+        className="flex h-8 w-8 items-center justify-center rounded-md border border-ink-line bg-white/60 text-ink-soft transition hover:border-ink/50 hover:text-ink disabled:opacity-40"
+      >
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          <circle cx="11" cy="11" r="7" />
+          <line x1="21" y1="21" x2="16.65" y2="16.65" />
+        </svg>
+      </button>
+
+      {/* Birthdays this month */}
+      {birthdayCount > 0 && (
+        <button
+          type="button"
+          onClick={onOpenBirthdays}
+          title={`今月の誕生日 (${birthdayCount} 人)`}
+          aria-label={`今月の誕生日 ${birthdayCount} 人`}
+          className="relative hidden h-8 items-center gap-1 rounded-md border border-shu/30 bg-shu-soft/30 px-2 font-mincho text-xs tracking-wider2 text-shu-deep transition hover:border-shu/50 hover:bg-shu-soft/50 sm:flex"
+        >
+          <span>{new Date().getMonth() + 1}月の誕生日</span>
+          <span className="rounded-sm bg-shu px-1 py-0.5 text-[10px] font-semibold text-paper">
+            {birthdayCount}
+          </span>
+        </button>
+      )}
 
       {/* Add person */}
       <button

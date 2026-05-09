@@ -1,6 +1,7 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type { Person } from "../types";
 import { NODE_HEIGHT, NODE_WIDTH } from "../layout/treeLayout";
+import { computeAge } from "../lib/age";
 
 export type PersonNodeData = {
   person: Person;
@@ -216,8 +217,59 @@ export function PersonNode({ data, selected }: NodeProps) {
               {person.birthDate}
             </div>
           )}
+          {person.deathDate && (
+            <>
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "#6B655F",
+                  marginTop: 1,
+                  fontFamily: '"JetBrains Mono", monospace',
+                  letterSpacing: "0.02em",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                没 {person.deathDate}
+              </div>
+              {(() => {
+                const age = computeAge(person.birthDate, person.deathDate);
+                if (age == null) return null;
+                return (
+                  <div
+                    style={{
+                      fontSize: 10,
+                      color: "#6B655F",
+                      marginTop: 1,
+                      fontFamily: '"Shippori Mincho", serif',
+                      letterSpacing: "0.04em",
+                    }}
+                  >
+                    享年 {age}
+                  </div>
+                );
+              })()}
+            </>
+          )}
         </div>
       </div>
+      {person.deathDate && (
+        <span
+          style={{
+            position: "absolute",
+            top: 8,
+            right: 10,
+            fontFamily: '"Shippori Mincho", serif',
+            fontSize: 10,
+            color: "#A52A1F",
+            letterSpacing: "0.1em",
+            opacity: 0.85,
+          }}
+          aria-label="故人"
+          title="故人"
+        >
+          故
+        </span>
+      )}
     </div>
   );
 }

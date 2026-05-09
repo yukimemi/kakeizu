@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Person, Relationship } from "../types";
 import { PersonForm } from "./PersonForm";
+import { PersonPicker } from "./PersonPicker";
 import { softDeletePerson, updatePerson } from "../data/persons";
 import {
   createRelationship,
@@ -382,23 +383,11 @@ function Section({
       )}
       {canEdit &&
         (candidates.length > 0 ? (
-          <select
-            value=""
-            onChange={(e) => {
-              const id = e.target.value;
-              if (!id) return;
-              void onAdd(id);
-              e.target.value = "";
-            }}
-            className="input w-full"
-          >
-            <option value="">{addLabel}</option>
-            {candidates.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.lastName} {c.firstName}
-              </option>
-            ))}
-          </select>
+          <PersonPicker
+            candidates={candidates}
+            placeholder={addLabel}
+            onPick={(id) => void onAdd(id)}
+          />
         ) : (
           <div className="text-xs italic text-ink-faint">
             追加できる人がいません

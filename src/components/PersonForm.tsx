@@ -10,6 +10,7 @@ import {
   lookupPostalCode,
   normalizePostalCode,
 } from "../lib/postalCode";
+import { computeAge } from "../lib/age";
 import { SOCIAL_SERVICES, SocialIcon, buildSocialUrl } from "../lib/socials";
 
 type PhotoTransform = { x: number; y: number; scale: number };
@@ -26,6 +27,7 @@ const schema = z.object({
   lastNameKana: z.string().optional(),
   firstNameKana: z.string().optional(),
   birthDate: z.string().optional(),
+  deathDate: z.string().optional(),
   gender: z.enum(["male", "female", "other"]).optional().or(z.literal("")),
   postalCode: z.string().optional(),
   address: z.string().optional(),
@@ -86,6 +88,7 @@ function buildDefaultValues(initial: Person): FormValues {
     lastNameKana: initial.lastNameKana ?? "",
     firstNameKana: initial.firstNameKana ?? "",
     birthDate: initial.birthDate ?? "",
+    deathDate: initial.deathDate ?? "",
     gender: (initial.gender as FormValues["gender"]) ?? "",
     postalCode: initial.postalCode ?? "",
     address: initial.address ?? "",
@@ -232,6 +235,7 @@ export function PersonForm({
           lastNameKana: v.lastNameKana || undefined,
           firstNameKana: v.firstNameKana || undefined,
           birthDate: v.birthDate || undefined,
+          deathDate: v.deathDate || undefined,
           gender: v.gender ? (v.gender as Person["gender"]) : undefined,
           postalCode: v.postalCode
             ? formatPostalCode(v.postalCode) || undefined
@@ -374,6 +378,18 @@ export function PersonForm({
               <option value="female">女性</option>
               <option value="other">その他</option>
             </select>
+          </Field>
+        </Row>
+
+        <Row>
+          <Field label="没年月日">
+            <input type="date" {...register("deathDate")} className="input" />
+          </Field>
+          <Field label={watch("deathDate") ? "享年" : "年齢"}>
+            <AgeReadout
+              birthDate={watch("birthDate")}
+              deathDate={watch("deathDate")}
+            />
           </Field>
         </Row>
 
@@ -571,6 +587,21 @@ function Field({
       {children}
       {error && <span className="text-[11px] text-shu-deep">{error}</span>}
     </label>
+  );
+}
+
+function AgeReadout({
+  birthDate,
+  deathDate,
+}: {
+  birthDate?: string;
+  deathDate?: string;
+}) {
+  const age = computeAge(birthDate, deathDate || undefined);
+  return (
+    <div className="input flex items-center whitespace-nowrap !bg-washi-warm/40 font-mincho text-sm text-ink-soft">
+      {age != null ? `${age}歳` : "—"}
+    </div>
   );
 }
 

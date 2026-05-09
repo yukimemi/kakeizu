@@ -30,6 +30,9 @@ import { PersonDetailPanel } from "../components/PersonDetailPanel";
 import { TreeSettingsDialog } from "../components/TreeSettingsDialog";
 import { TreeImportDialog } from "../components/TreeImportDialog";
 import { AuditHistoryDialog } from "../components/AuditHistoryDialog";
+import { SearchDialog } from "../components/SearchDialog";
+import { BirthdaysDialog } from "../components/BirthdaysDialog";
+import { TimelineDialog } from "../components/TimelineDialog";
 import type { Actor } from "../data/audit";
 
 const nodeTypes = { person: PersonNode, couple: CoupleNode };
@@ -62,6 +65,9 @@ function TreePageInner() {
   const [showSettings, setShowSettings] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [showBirthdays, setShowBirthdays] = useState(false);
+  const [showTimeline, setShowTimeline] = useState(false);
 
   const actor: Actor = {
     uid,
@@ -516,8 +522,13 @@ function TreePageInner() {
         onOpenSettings={() => setShowSettings(true)}
         onOpenImport={() => setShowImport(true)}
         onOpenHistory={() => setShowHistory(true)}
+        onOpenSearch={() => setShowSearch(true)}
+        onOpenBirthdays={() => setShowBirthdays(true)}
+        onOpenTimeline={() => setShowTimeline(true)}
+        persons={persons}
         canImport={canEdit && trees.length >= 2}
         canAddPerson={!!treeId && canEdit}
+        canSearch={!!treeId && persons.length > 0}
       />
       <div className="relative flex min-h-0 flex-1 overflow-hidden">
         <div className="relative h-full min-w-0 flex-1">
@@ -570,6 +581,57 @@ function TreePageInner() {
           displayName={user?.displayName}
           canEdit={canEdit}
           onClose={() => setShowHistory(false)}
+        />
+      )}
+      {showSearch && (
+        <SearchDialog
+          persons={persons}
+          onClose={() => setShowSearch(false)}
+          onPick={(id) => {
+            setSelectedId(id);
+            const pos = autoPositions[id];
+            if (pos) {
+              rf.setCenter(
+                pos.x + NODE_WIDTH / 2,
+                pos.y + NODE_HEIGHT / 2,
+                { zoom: 1.2, duration: 400 },
+              );
+            }
+          }}
+        />
+      )}
+      {showBirthdays && (
+        <BirthdaysDialog
+          persons={persons}
+          onClose={() => setShowBirthdays(false)}
+          onPick={(id) => {
+            setSelectedId(id);
+            const pos = autoPositions[id];
+            if (pos) {
+              rf.setCenter(
+                pos.x + NODE_WIDTH / 2,
+                pos.y + NODE_HEIGHT / 2,
+                { zoom: 1.2, duration: 400 },
+              );
+            }
+          }}
+        />
+      )}
+      {showTimeline && (
+        <TimelineDialog
+          persons={persons}
+          onClose={() => setShowTimeline(false)}
+          onPick={(id) => {
+            setSelectedId(id);
+            const pos = autoPositions[id];
+            if (pos) {
+              rf.setCenter(
+                pos.x + NODE_WIDTH / 2,
+                pos.y + NODE_HEIGHT / 2,
+                { zoom: 1.2, duration: 400 },
+              );
+            }
+          }}
         />
       )}
       {showSettings && currentTree && (

@@ -41,6 +41,7 @@ export type Person = {
   lastNameKana?: string;
   firstNameKana?: string;
   birthDate?: string; // YYYY-MM-DD
+  deathDate?: string; // YYYY-MM-DD — set marks the person as deceased; 享年 is computed.
   gender?: Gender;
   photoUrl?: string;
   // Crop/pan state for the avatar — x/y are percentage offsets, scale is a
