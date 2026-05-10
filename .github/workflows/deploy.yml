@@ -40,6 +40,18 @@ jobs:
       - name: Build
         run: pnpm build
 
+      - name: Write service account credentials
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-sa.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-sa.json" >> "$GITHUB_ENV"
+
+      # Deploy rules BEFORE hosting so the new code only goes live after the
+      # security rules it depends on are in place.
+      - name: Deploy Firestore + Storage rules
+        run: pnpm exec firebase deploy --only firestore:rules,storage --project kakeizu-71ce1 --non-interactive
+
       - name: Deploy to Firebase Hosting (production)
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
