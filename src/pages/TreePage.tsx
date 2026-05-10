@@ -37,6 +37,7 @@ import { SelfPickerDialog } from "../components/SelfPickerDialog";
 import { exportTreeAsPdf, exportTreeAsPng } from "../lib/export";
 import { findKinship } from "../lib/kinship";
 import { getSelfPersonId, setSelfPersonId } from "../lib/selfPerson";
+import { getShowAge, setShowAge } from "../lib/displayPrefs";
 import type { Actor } from "../data/audit";
 
 const nodeTypes = { person: PersonNode, couple: CoupleNode };
@@ -77,6 +78,17 @@ function TreePageInner() {
   const flowWrapperRef = useRef<HTMLDivElement>(null);
 
   const [selfPersonId, setSelfPersonIdState] = useState<string | null>(null);
+  // Lazy init from localStorage so we don't add a setState-in-effect call.
+  // uid is stable for the auth session, so re-reading on uid change is unneeded.
+  const [showAge, setShowAgeState] = useState<boolean>(() => getShowAge(uid));
+
+  const toggleShowAge = useCallback(() => {
+    // Compute next outside the updater so the localStorage write isn't
+    // duplicated under React StrictMode / Concurrent rendering re-invocations.
+    const next = !showAge;
+    setShowAgeState(next);
+    setShowAge(uid, next);
+  }, [uid, showAge]);
 
   const actor: Actor = {
     uid,
@@ -210,7 +222,7 @@ function TreePageInner() {
           id: p.id,
           type: "person",
           position: pos,
-          data: { person: p, kinship },
+          data: { person: p, kinship, showAge },
           draggable: false,
           selected: p.id === selectedId,
           width: NODE_WIDTH,
@@ -219,7 +231,7 @@ function TreePageInner() {
         };
       });
     });
-  }, [persons, autoPositions, selectedId, selfPersonId, relationships]);
+  }, [persons, autoPositions, selectedId, selfPersonId, relationships, showAge]);
 
   // Build couple lookup and synthetic couple connector nodes.
   const { couples, coupleOfPerson } = useMemo(() => {
@@ -575,6 +587,8 @@ function TreePageInner() {
         onExportPng={() => void runExport("png")}
         onExportPdf={() => void runExport("pdf")}
         onOpenSelfPicker={() => setShowSelfPicker(true)}
+        showAge={showAge}
+        onToggleShowAge={toggleShowAge}
         persons={persons}
         canImport={canEdit && trees.length >= 2}
         canAddPerson={!!treeId && canEdit}
