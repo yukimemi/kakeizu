@@ -208,6 +208,29 @@ this file.
   (or via a project-side `scripts/deploy-rules.ts` helper —
   kakeizu has one as a reference).
 
+#### Cross-service rules IAM (one-time per project)
+
+If `storage.rules` calls `firestore.get(...)` / `firestore.exists(...)`
+to gate Storage on Firestore data, the Firebase Storage service
+agent needs `roles/firebaserules.firestoreServiceAgent`. The
+Firebase Console grants this automatically on first Publish of
+such a rule, but the REST API / CLI deploy paths (this stack
+uses CI + a local `scripts/deploy-rules.ts`) do **not** trigger
+the prompt. Without it every cross-service call returns null and
+rules silently 403, with no useful logs anywhere.
+
+Grant once per project (after enabling Firebase Storage):
+
+```sh
+gcloud projects add-iam-policy-binding <PROJECT_ID> \
+  --member="serviceAccount:service-<PROJECT_NUMBER>@gcp-sa-firebasestorage.iam.gserviceaccount.com" \
+  --role="roles/firebaserules.firestoreServiceAgent"
+```
+
+Then re-deploy the storage ruleset (IAM doesn't apply
+retroactively to a live ruleset; you need a fresh release).
+Allow ~1–2 min for IAM propagation before testing.
+
 ### Env wiring
 
 - `.env.example` documents the `VITE_FIREBASE_*` surface. Copy
