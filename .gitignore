@@ -29,6 +29,8 @@ dist-ssr
 .env.*.local
 
 .vercel
+.claude/scheduled_tasks.lock
+
 # kata:gitignore:base:begin
 # Editor / OS noise — kata-managed (yukimemi/pj-base).
 .idea/
