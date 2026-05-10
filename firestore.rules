@@ -11,7 +11,7 @@ service cloud.firestore {
       return request.auth != null
         && request.auth.token.email_verified == true
         && exists(/databases/$(database)/documents/config/access)
-        && (userEmail() in accessConfig().allowedEmails
+        && (userEmail() in accessConfig().get('allowedEmails', [])
             || userEmail() in accessConfig().get('adminEmails', []));
     }
 
