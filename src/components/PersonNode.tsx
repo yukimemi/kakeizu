@@ -10,6 +10,10 @@ export type PersonNodeData = {
   // TreePage and forwarded so the node can render it as a small seal.
   // `"あなた"` when the node is the self person itself.
   kinship?: string | null;
+  // Whether to render the current 満年齢 for living people. Off by default
+  // because some users would rather not surface ages. Per-uid localStorage
+  // toggle managed in TreePage.
+  showAge?: boolean;
 };
 
 const genderTheme: Record<
@@ -39,7 +43,7 @@ const genderTheme: Record<
 };
 
 export function PersonNode({ data, selected }: NodeProps) {
-  const { person, kinship } = data as unknown as PersonNodeData;
+  const { person, kinship, showAge } = data as unknown as PersonNodeData;
   const fullName = `${person.lastName} ${person.firstName}`.trim();
   const isSelf = kinship === "あなた";
   const kana =
@@ -222,6 +226,23 @@ export function PersonNode({ data, selected }: NodeProps) {
               {person.birthDate}
             </div>
           )}
+          {showAge && person.birthDate && !person.deathDate && (() => {
+            const age = computeAge(person.birthDate);
+            if (age == null) return null;
+            return (
+              <div
+                style={{
+                  fontSize: 10,
+                  color: "#6B655F",
+                  marginTop: 1,
+                  fontFamily: '"Shippori Mincho", serif',
+                  letterSpacing: "0.04em",
+                }}
+              >
+                {age}歳
+              </div>
+            );
+          })()}
           {person.deathDate && (
             <>
               <div

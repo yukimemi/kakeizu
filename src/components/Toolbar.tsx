@@ -19,6 +19,8 @@ type Props = {
   onExportPng: () => void;
   onExportPdf: () => void;
   onOpenSelfPicker: () => void;
+  showAge: boolean;
+  onToggleShowAge: () => void;
   persons: Person[];
   canImport: boolean;
   canAddPerson: boolean;
@@ -41,6 +43,8 @@ export function Toolbar({
   onExportPng,
   onExportPdf,
   onOpenSelfPicker,
+  showAge,
+  onToggleShowAge,
   persons,
   canImport,
   canAddPerson,
@@ -217,6 +221,43 @@ export function Toolbar({
                       <path d="M4 21c1-4 4-7 8-7s7 3 8 7" />
                     </svg>
                     自分を設定
+                  </button>
+                </li>
+              )}
+              {current && (
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onToggleShowAge();
+                      setOpen(false);
+                    }}
+                    role="menuitemcheckbox"
+                    aria-checked={showAge}
+                    className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-ink-soft transition hover:bg-washi-warm hover:text-ink"
+                  >
+                    <span
+                      aria-hidden
+                      className={`flex h-3.5 w-3.5 flex-none items-center justify-center rounded-sm border ${
+                        showAge
+                          ? "border-shu bg-shu text-paper"
+                          : "border-ink-line bg-paper text-transparent"
+                      }`}
+                    >
+                      <svg
+                        width="10"
+                        height="10"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    </span>
+                    年齢を表示
                   </button>
                 </li>
               )}
