@@ -1,10 +1,10 @@
 preset = "C:/Users/yukimemi/src/github.com/yukimemi/pj-presets/web-react-firebase.toml"
-applied_at = "2026-05-09T12:20:07.3948858Z"
+applied_at = "2026-05-10T05:36:13.426513Z"
 
 [[templates]]
 source = "github.com/yukimemi/pj-base"
-rev = "280ca2337400c0fe4cd2da17dc16185581f3a2dd"
-version = "0.3.0"
+rev = "87f3c18e4f33550531841e495823cf0827dac4cb"
+version = "0.5.0"
 
 [[templates]]
 source = "github.com/yukimemi/pj-pnpm"
@@ -18,14 +18,23 @@ version = "0.1.0"
 
 [[templates]]
 source = "github.com/yukimemi/pj-firebase"
-rev = "ecd5e4f0e238175bc6010fe597dd8d1a9d5a4083"
-version = "0.1.0"
+rev = "a51aadbf27a3344f7e8d9744a9e56bfaad2b9af8"
+version = "0.2.0"
+
+[files.".agents/skills/renri/SKILL.md"]
+once_applied = true
+
+[files.".claude/skills/renri/SKILL.md"]
+once_applied = true
 
 [files.".env.example"]
 once_applied = true
 
 [files.".gemini/settings.json"]
 content_hash = "486c974de88903113ed99b4e643432b7050e88f1031276f5263e8da7b43fe11e"
+
+[files.".gitattributes"]
+content_hash = "1a4b579b1b643a41dbf97d8834ff1f3f1fe532ff863d0f861431cf3ca47d31e2"
 
 [files.".github/workflows/deploy.yml"]
 once_applied = true
@@ -34,7 +43,7 @@ once_applied = true
 content_hash = "99ce77ba843c5bee84182b768f18a501f6e76eef3731eb0e899997b33b7c8468"
 
 [files."AGENTS.md"]
-content_hash = "b45a0f630ae34ea195313d9b060eb99b0325a541f16c5dac36b536cb2f57b9cd"
+content_hash = "cc0e57a7d14b7b77eed3795aec832bb9adace50b26936445df0b2107237f7b93"
 
 [files."CLAUDE.md"]
 content_hash = "a76b3af252969b8120128d7ce44f2b6cfdcf88c7420ee00675732f542d047529"
@@ -47,6 +56,9 @@ once_applied = true
 
 [files."OPENCODE.md"]
 content_hash = "11993dc7feec5fca8e83934f135de33879b88f100c48aeba0729de2f57a11a48"
+
+[files."apm.lock.yaml"]
+once_applied = true
 
 [files."apm.yml"]
 once_applied = true

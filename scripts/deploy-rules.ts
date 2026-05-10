@@ -3,6 +3,18 @@
  * using a gcloud-issued access token.
  *
  * Run: pnpm exec tsx scripts/deploy-rules.ts
+ *
+ * One-time IAM setup for cross-service rules:
+ *   storage.rules uses firestore.get(...) to gate uploads on tree membership.
+ *   The Firebase Console grants the required IAM the first time you Publish
+ *   such a rule; the REST API path (this script and the CI workflow) does
+ *   not. Without the binding every cross-service call returns null and rules
+ *   silently 403. Granted once per project:
+ *     gcloud projects add-iam-policy-binding <PROJECT_ID> \
+ *       --member="serviceAccount:service-<PROJECT_NUMBER>@gcp-sa-firebasestorage.iam.gserviceaccount.com" \
+ *       --role="roles/firebaserules.firestoreServiceAgent"
+ *   Then re-run this script — IAM changes don't apply to the live ruleset
+ *   retroactively, you need a fresh release.
  */
 import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
