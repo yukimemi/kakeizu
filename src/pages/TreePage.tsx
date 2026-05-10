@@ -83,12 +83,12 @@ function TreePageInner() {
   const [showAge, setShowAgeState] = useState<boolean>(() => getShowAge(uid));
 
   const toggleShowAge = useCallback(() => {
-    setShowAgeState((cur) => {
-      const next = !cur;
-      setShowAge(uid, next);
-      return next;
-    });
-  }, [uid]);
+    // Compute next outside the updater so the localStorage write isn't
+    // duplicated under React StrictMode / Concurrent rendering re-invocations.
+    const next = !showAge;
+    setShowAgeState(next);
+    setShowAge(uid, next);
+  }, [uid, showAge]);
 
   const actor: Actor = {
     uid,
