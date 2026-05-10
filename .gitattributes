@@ -1,0 +1,4 @@
+# APM-generated lock file — keep LF on Windows so the file doesn't
+# re-CRLF every time `apm install --update` runs and create spurious
+# diffs.
+apm.lock.yaml text eol=lf
