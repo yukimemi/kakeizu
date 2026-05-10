@@ -133,19 +133,19 @@ trees/{treeId}                    # 家系図
 
 persons/{personId}                # 人物
   ├─ treeId
-  ├─ lastName, firstName, *Kana, gender, birthDate, deathDate
-  ├─ photoUrl, photoTransform     # 写真 + クロップ/ズーム情報
-  ├─ postalCode, address
-  ├─ phones[], emails[], socials  # 構造化された連絡先
-  ├─ memo
-  ├─ importedFromId               # 他ツリーからの取り込み元
-  └─ deletedAt, deletedBy         # ソフトデリート (履歴から復元可能)
+  ├─ lastName, firstName, lastNameKana?, firstNameKana?, gender?, birthDate?, deathDate?
+  ├─ photoUrl?, photoTransform?   # 写真 + クロップ/ズーム情報
+  ├─ postalCode?, address?
+  ├─ phones?, emails?, socials?   # 構造化された連絡先
+  ├─ memo?
+  ├─ importedFromId?              # 他ツリーからの取り込み元
+  └─ deletedAt?, deletedBy?       # ソフトデリート (履歴から復元可能)
 
 relationships/{relId}             # つながり
   ├─ treeId
   ├─ type: 'parent' | 'spouse'
   ├─ from, to
-  └─ deletedAt, deletedBy         # ソフトデリート
+  └─ deletedAt?, deletedBy?       # ソフトデリート
 
 auditEvents/{eventId}             # 編集履歴 (top-level)
   ├─ treeId, ts, actor, actorEmail, actorName
