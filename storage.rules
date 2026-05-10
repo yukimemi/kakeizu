@@ -8,11 +8,15 @@ service firebase.storage {
       function memberIds() {
         return firestore.get(/databases/(default)/documents/trees/$(treeId)).data.memberIds;
       }
+      function accessConfig() {
+        return firestore.get(/databases/(default)/documents/config/access).data;
+      }
       function isAllowedEmail() {
         return request.auth != null
           && request.auth.token.email_verified == true
           && firestore.exists(/databases/(default)/documents/config/access)
-          && request.auth.token.email in firestore.get(/databases/(default)/documents/config/access).data.allowedEmails;
+          && (request.auth.token.email in accessConfig().get('allowedEmails', [])
+              || request.auth.token.email in accessConfig().get('adminEmails', []));
       }
       allow read: if request.auth != null
         && firestore.exists(/databases/(default)/documents/trees/$(treeId))
