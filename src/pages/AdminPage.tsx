@@ -154,7 +154,10 @@ function EmailListCard(props: {
     () => [...props.emails].sort((a, b) => a.localeCompare(b)),
     [props.emails],
   );
-  const highlights = new Set((props.highlightEmails ?? []).map((e) => e.toLowerCase()));
+  const highlights = useMemo(
+    () => new Set((props.highlightEmails ?? []).map((e) => e.toLowerCase())),
+    [props.highlightEmails],
+  );
 
   const onAdd = async () => {
     setError(null);

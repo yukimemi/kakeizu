@@ -26,8 +26,8 @@ export function useAccessConfig() {
       (snap) => {
         const data = snap.data() as Partial<AccessConfig> | undefined;
         setConfig({
-          allowedEmails: (data?.allowedEmails ?? []).map((e) => e.toLowerCase()),
-          adminEmails: (data?.adminEmails ?? []).map((e) => e.toLowerCase()),
+          allowedEmails: (data?.allowedEmails ?? []).map(normalize),
+          adminEmails: (data?.adminEmails ?? []).map(normalize),
         });
         setLoading(false);
       },
@@ -78,12 +78,12 @@ export async function removeAllowedEmail(email: string): Promise<void> {
 export async function addAdminEmail(email: string): Promise<void> {
   const lower = normalize(email);
   if (!lower || !lower.includes("@")) throw new Error("invalid email");
+  // firestore.rules' isAllowedEmail() already OR-checks adminEmails, so
+  // admins don't need a parallel entry in allowedEmails to write.
   await setDoc(
     ACCESS_DOC,
     {
-      // Admins must also be in allowedEmails so write rules accept them.
       adminEmails: arrayUnion(lower),
-      allowedEmails: arrayUnion(lower),
       updatedAt: serverTimestamp(),
     },
     { merge: true },

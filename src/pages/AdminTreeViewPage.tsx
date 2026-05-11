@@ -45,11 +45,14 @@ function AdminTreeViewInner() {
   const [treeError, setTreeError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const actor: Actor = {
-    uid: user!.uid,
-    ...(user?.email ? { email: user.email } : {}),
-    ...(user?.displayName ? { name: user.displayName } : {}),
-  };
+  const actor: Actor = useMemo(
+    () => ({
+      uid: user!.uid,
+      ...(user?.email ? { email: user.email } : {}),
+      ...(user?.displayName ? { name: user.displayName } : {}),
+    }),
+    [user],
+  );
 
   useEffect(() => {
     if (!treeId) return;
