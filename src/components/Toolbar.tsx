@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
+import { useIsAdmin } from "../data/access";
 import type { Tree } from "../types";
 import { birthdaysThisMonth } from "../lib/birthdays";
 import type { Person } from "../types";
@@ -53,6 +55,7 @@ export function Toolbar({
 }: Props) {
   const birthdayCount = birthdaysThisMonth(persons).length;
   const { user, logout } = useAuth();
+  const { isAdmin } = useIsAdmin(user?.email);
   const [open, setOpen] = useState(false);
   const current = trees.find((t) => t.id === currentTreeId) ?? null;
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -431,6 +434,27 @@ export function Toolbar({
       </button>
 
       <div className="ml-auto flex items-center gap-2.5 sm:gap-3">
+        {isAdmin && (
+          <Link
+            to="/admin"
+            className="btn-line !py-1.5 text-xs sm:text-sm"
+            title="管理画面"
+          >
+            <svg
+              className="h-4 w-4 sm:hidden"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M12 1l3.09 6.26L22 8.27l-5 4.87 1.18 6.88L12 16.77l-6.18 3.25L7 13.14 2 8.27l6.91-1.01L12 1z" />
+            </svg>
+            <span className="hidden sm:inline">管理</span>
+          </Link>
+        )}
         {user?.photoURL && (
           <img
             src={user.photoURL}
