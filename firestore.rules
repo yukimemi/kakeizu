@@ -14,6 +14,17 @@ service cloud.firestore {
         && (userEmail() in accessConfig().get('allowedEmails', [])
             || userEmail() in accessConfig().get('adminEmails', []));
     }
+    // Operator-level access. adminEmails is curated by hand (via the /admin
+    // UI by an existing admin, or by editing config/access directly in the
+    // Firebase console). Admins can read all trees / persons / relationships
+    // across the whole project — being listed by email is the price of that
+    // visibility.
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && exists(/databases/$(database)/documents/config/access)
+        && userEmail() in accessConfig().get('adminEmails', []);
+    }
 
     function treeData(treeId) {
       return get(/databases/$(database)/documents/trees/$(treeId)).data;
@@ -82,7 +93,8 @@ service cloud.firestore {
       allow read: if request.auth != null
         && (request.auth.uid in resource.data.memberIds
             || (request.auth.token.email_verified == true
-                && userEmail() in resource.data.get('invitedEmails', [])));
+                && userEmail() in resource.data.get('invitedEmails', []))
+            || isAdmin());
       allow create: if isAllowedEmail()
         && request.resource.data.ownerId == request.auth.uid
         && request.auth.uid in request.resource.data.memberIds
@@ -94,7 +106,7 @@ service cloud.firestore {
     }
 
     match /persons/{personId} {
-      allow read: if isMember(resource.data.treeId);
+      allow read: if isMember(resource.data.treeId) || isAdmin();
       allow create: if isAllowedEmail()
         && canEdit(request.resource.data.treeId);
       allow update, delete: if isAllowedEmail()
@@ -102,7 +114,7 @@ service cloud.firestore {
     }
 
     match /relationships/{relId} {
-      allow read: if isMember(resource.data.treeId);
+      allow read: if isMember(resource.data.treeId) || isAdmin();
       allow create: if isAllowedEmail()
         && canEdit(request.resource.data.treeId);
       allow update, delete: if isAllowedEmail()
