@@ -68,11 +68,14 @@ export function BirthdaysDialog({ persons, onPick, onClose }: Props) {
                 const isToday = `${bMonth}-${bDay}` === todayKey;
                 const age = computeAge(p.birthDate);
                 const upcomingAge = age != null ? age + 1 : null;
-                // If birthday has already passed this month, person is now `age`;
-                // if upcoming, they will turn `age + 1`.
+                // `list` is already month-filtered by `birthdaysThisMonth`, so
+                // comparing day-of-month alone is sufficient. `computeAge`
+                // already counts the birthday day as +1, so for today AND
+                // past-this-month show the current `age`; only strictly future
+                // days this month get the "becoming `age + 1`" message.
                 const turning =
                   age != null
-                    ? bDay < todayDay && bMonth === todayMonth
+                    ? bDay <= todayDay
                       ? `${age}歳`
                       : `${upcomingAge}歳になります`
                     : null;
