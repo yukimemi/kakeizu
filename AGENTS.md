@@ -1,5 +1,5 @@
 <!-- kata:agents:base:begin -->
-## yukimemi/* shared conventions
+## Shared conventions
 
 This file is the agent-agnostic source of truth (per the
 [agents.md](https://agents.md) convention). The matching
@@ -11,21 +11,129 @@ here so each tool's auto-load behaviour still finds something.
 
 - **No direct push to `main`.** Open a PR.
   - Exception: trivial typo / whitespace / docs wording fixes.
-  - Exception: standalone version bumps.
 - Branch names: `feat/...`, `fix/...`, `chore/...`.
 - **PR titles + bodies in English. Commit messages in English.**
-- Tag-based releases: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+- **Releases are PR-driven and tagging is automatic** — in repos that
+  ship a release pipeline. Bump the version in the project's own
+  manifest in a `chore/release-vX.Y.Z` PR; on merge to `main` the
+  language layer's `auto-tag.yml` detects the bump, pushes the
+  `vX.Y.Z` tag, and that tag is what fires `release.yml`. **Do not run
+  `git tag` by hand** — the bot tag will collide and the manual push
+  fails. The specifics belong to the layers shipping those two
+  workflows, which are not the same layer: `kata:agents:rust:*` for
+  which file holds the version and for `auto-tag.yml`,
+  `kata:agents:rust-{cli,lib}:*` for what `release.yml` builds and
+  publishes. A repo with no `auto-tag.yml` has no release pipeline at
+  all: nothing tags, and the version field in its manifest may well
+  be decoration.
 
 ### PR review cycle
 
-- Every PR runs reviews from **Gemini Code Assist** and
+- Every PR runs reviews from **Claude Code**
+  (`.github/workflows/claude-review.yml`, kata-managed) and
   **CodeRabbit**. Wait for both bots to post, address their
   comments (push fixes to the PR branch), and merge only after
-  feedback is resolved.
-- **Reply to reviewers after pushing a fix.** Reply on the
-  corresponding review thread with an **@-mention**
-  (`@gemini-code-assist` / `@coderabbitai`). Silent fixes are
-  invisible to reviewers and cost the audit trail.
+  feedback is resolved. The claude-review workflow skips
+  review-exempt PRs by itself (its job-level `if:` excludes
+  `chore/release-*`, `kata-apply/auto`, `apm-bump/auto`, and
+  Renovate / Dependabot authors) — a missing Claude review on
+  those PRs is expected, not a failure.
+- **Any PR that touches the Claude workflow files goes
+  unreviewed.** `claude-code-action` requires the workflow file to
+  already exist on the default branch **with identical content** —
+  otherwise a PR could rewrite the workflow to exfiltrate the
+  token. When the content differs it logs "Skipping action due to
+  workflow validation" and exits 0 without reviewing: a green
+  check with no review attached. This covers two cases, and the
+  second is the one that keeps surprising people:
+  - the PR that first adopts these templates (the workflow does
+    not exist on the default branch yet), and
+  - any later PR that **edits** `claude-review.yml` / `claude.yml`,
+    e.g. hand-pulling an upstream template fix.
+
+  Not fixable from this side — it is the mechanism that makes the
+  token safe to hand to the action at all. Expected: merge on CI +
+  owner approval; reviews resume on the next PR that leaves the
+  workflows alone. The `kata-apply/auto` branch is already excluded
+  by the job-level `if:`, so the daily template-refresh PRs do not
+  add noise here.
+- **A missing credential fails loudly instead.** If the repo has
+  neither `CLAUDE_CODE_OAUTH_TOKEN` nor `ANTHROPIC_API_KEY` set,
+  the guard step fails the job — set one and re-run (subscription
+  path: `claude setup-token` → `gh secret set`; pay-as-you-go:
+  store `ANTHROPIC_API_KEY` and swap the action input to
+  `anthropic_api_key`). Distinguishing the two: **red** means no
+  credential, **green with no review** means workflow validation.
+- **The Claude full review fires once, at PR open** (plus
+  `ready_for_review` / `reopened`) — fix pushes do **not** re-trigger
+  it (`synchronize` is deliberately off the trigger list; a full
+  re-review per push doubled up with the mention-driven re-check
+  below and burned tokens for no extra signal). Verification of
+  fixes rides the `@claude` thread replies. After a large rework
+  that changes the PR's shape, request a fresh full pass
+  explicitly: `@claude please re-review the full PR`. CodeRabbit
+  still reviews pushes on its own cadence (its app config, not
+  this workflow).
+- **After opening a PR, immediately enter the review-monitoring
+  loop — do not ask the user whether to start it.** Drive the
+  cadence with `/loop` — fixed-interval mode (e.g.
+  `/loop 60s …`) schedules ticks via `CronCreate`; dynamic mode
+  (no interval, `/loop …`) self-paces via `ScheduleWakeup`. The
+  agent actively pulls fresh state each tick with
+  `gh pr view <N> --json state,reviews,comments,statusCheckRollup`
+  and `gh api repos/<owner>/<repo>/pulls/<N>/comments` (the
+  latter covers inline review comments, which `gh pr view`
+  does not surface) and reacts to new bot feedback. Passive
+  watchers (background `gh` polls, file watchers, hooks) cannot
+  trigger active follow-up, so they are not a substitute —
+  without an active wake-up the agent never re-reads the PR.
+- **Default polling interval: 60s.** Claude Code review /
+  CodeRabbit typically reply within ~1–5 minutes of a push or
+  thread reply, so a 60s tick catches them on the next wake-up
+  without burning cache: 60s sits well inside the 5-minute
+  prompt-cache TTL, so the conversation context stays cached
+  across ticks. Do **not** stretch the interval to 300s — that
+  is the worst-of-both window (you pay the cache miss without
+  amortizing it). If the PR is idle but a bot re-review is still
+  expected (e.g. a CodeRabbit rate-limit refill window), step
+  **up** to 1200–1800s instead.
+- **Stop the loop entirely when only owner approval is missing.**
+  Once review bots are quiet (or quiet-by-exception — version-bump
+  skip, Renovate/Dependabot skip), CI is green, and there is no
+  other expected follow-up, the *only* remaining action is human
+  approval. GitHub already notifies the owner; the agent
+  re-entering on every cron tick to find the same "still waiting
+  on owner" state burns cache and adds no value. Stop scheduling
+  further wake-ups (`CronDelete` in fixed-interval mode; simply
+  omit the next `ScheduleWakeup` in dynamic mode) and report the
+  wait state to the user. The owner restarts the loop after their
+  next push if a fresh bot pass is wanted, or merges directly.
+  (A CodeRabbit rate-limit window doesn't qualify on its own — a
+  re-review is still expected once the quota refills, so step up
+  to 1200–1800s instead and let it ride. Stopping is only correct
+  when the owner has explicitly chosen to skip the bot pass per
+  the rate-limit exception below.)
+- **Reply to reviewers after pushing a fix — in each thread, not
+  at the top level.** Every finding lives in its own inline review
+  thread; answer *each* one as an in-thread reply, carrying an
+  **@-mention** (`@claude` / `@coderabbitai`). Use the review-
+  comment *replies* endpoint — `gh api repos/<owner>/<repo>/pulls/<N>/comments/<comment_id>/replies -f body=…`
+  (or `-F in_reply_to=<comment_id> -f body=…` on the comments
+  endpoint — `body` is required there too) — and
+  get each comment's `<comment_id>` from
+  `gh api repos/<owner>/<repo>/pulls/<N>/comments`. A single
+  top-level `gh pr comment` does **not** count: it leaves every
+  inline thread unresolved, the bot can't tie your response to the
+  finding it raised, and the per-finding audit trail is lost.
+  Reply in-thread even when you're **declining** a suggestion —
+  say why; a silent skip reads as overlooked. Note `@claude` also
+  triggers the interactive responder
+  (`.github/workflows/claude.yml`, kata-managed) — it will
+  re-check the fix and reply on the thread. Since fix pushes no
+  longer re-trigger the full review, this mention-driven re-check
+  is the **only** Claude-side verification of a fix — don't skip
+  it for substantive fixes; do skip it for pure FYI notes that
+  need no verification.
 - A review thread is **settled** the moment the latest bot reply
   is ack-only ("Thank you" / "Understood" / a re-review summary
   with no new findings) or 30 minutes elapse with no actionable
@@ -33,20 +141,68 @@ here so each tool's auto-load behaviour still finds something.
 - **Merge gate**: review bots quiet AND owner explicit approval.
 - Bot-authored PRs (Renovate / Dependabot) skip the bot-review
   gate; CI green + owner approval is enough.
+- **Version-bump-only PRs** (a single `chore/release-vX.Y.Z`
+  branch whose entire diff is `[workspace.package].version` /
+  `[package].version` + the matching inter-crate refs +
+  `Cargo.lock`) **also skip the bot-review gate.** There is
+  nothing for the bots to find in a version bump, and the
+  release pipeline downstream of merge (auto-tag → release.yml)
+  is time-sensitive. CI green + owner approval is enough.
+- **Treat CodeRabbit rate-limit notices as "quiet" for the
+  merge gate.** If CodeRabbit only posts a "Review limit
+  reached" quota-exhaustion message (no findings, no inline
+  comments), it has produced no review content — there is
+  nothing to address. Re-trigger with `@coderabbitai review`
+  once the quota refills if you want a real pass; for small or
+  time-sensitive PRs, merge on owner approval without waiting.
 
 ### Worktree workflow
+
+> **Before your FIRST edit to any file, run `renri add` — NEVER edit the
+> main checkout.** Read-only inspection (Read / Grep / Glob) stays on the
+> main checkout; the instant you intend to *change* a file, you must
+> already be in a worktree. The trap that keeps catching agents: diving
+> into a fix the moment the diagnosis lands and editing in place. A
+> concurrent agent shares the main checkout — your in-place edits will
+> clobber theirs or be clobbered, and in a jj-colocated repo a stray
+> working-copy commit entangles unrelated WIP into your branch. If you
+> slip and edit in the main checkout, capture the diff first (jj already
+> snapshotted it into the working-copy commit, so `jj diff > patch`; for
+> git, `git stash` or save a patch — if you got as far as committing on a
+> branch, just push it). Then reset the main checkout to pristine main
+> (`jj new main@origin`, or `git switch -`), `renri add` a worktree, and
+> re-apply the captured diff there.
 
 Use [`renri`](https://github.com/yukimemi/renri) for any
 commit-bound change. From the main checkout:
 
 ```sh
-renri add <branch-name>            # create a worktree (jj-first)
-renri --vcs git add <branch-name>  # force a git worktree
-renri remove <branch-name>         # cleanup after merge
+renri add <branch-name> --from main@origin            # create a worktree (jj-first), off latest upstream main
+renri --vcs git add <branch-name> --from origin/main  # force a git worktree, off latest upstream main
+renri remove <branch-name> -y --non-interactive  # cleanup after merge (agent-safe; see note)
 renri prune                        # GC stale worktrees
 ```
 
 Read-only inspection can stay on the main checkout.
+
+**Always pass `--from <upstream main>`** (`main@origin` for jj,
+`origin/main` for git). Without it, `renri add` forks off the *cwd
+worktree's current HEAD* — in a long-lived main checkout that often
+lags upstream, so the PR later shows up CONFLICTING against a `main`
+that had already moved (e.g. a refactor merged upstream before the
+branch was cut), forcing a manual re-port of the whole change.
+`renri add` does fetch first, but fetching only updates `main@origin`
+— it never moves the checkout's HEAD, so an explicit `--from` is what
+guarantees a fresh base.
+
+**Agents / non-interactive shells:** `renri remove` prints a details
+panel and waits for a confirmation prompt — without `-y` it **hangs**,
+and `--non-interactive` *alone* errors asking for `-y`. Always pass
+`-y`, and add `--non-interactive` so a mistyped/omitted name fails
+instead of opening a fuzzy picker (the same picker-fallback applies to
+`remove` / `cd` / `exec` with no name). Use `-f`/`--force` to remove a
+worktree that still has uncommitted changes or conflicts. To sweep
+every merged-PR worktree in one shot: `renri remove --merged -y`.
 
 ### kata-managed sections
 
@@ -57,11 +213,52 @@ templates — the bytes between `<!-- kata:*:begin -->` and
 listed in `.kata/applied.toml`. **Editing those bytes locally
 won't survive the next `kata apply`** — push the change to the
 upstream template repo (`yukimemi/pj-base` / `yukimemi/pj-rust` /
-…) instead. The marker scopes are layered:
+…) instead.
 
-- `kata:agents:base:*` — language-agnostic conventions (this section).
-- `kata:agents:rust:*` — added when `pj-rust` applies.
-- `kata:agents:rust-cli:*` — added when `pj-rust-cli` applies.
+The marker scopes are layered, one per applied layer:
+`kata:agents:base:*` is this section, and each layer adds its own
+(`kata:agents:rust:*`, `kata:agents:rust-cli:*`,
+`kata:agents:pnpm:*`, `kata:agents:firebase:*`, …). Which ones apply
+*here* is a grep away: `<!-- kata:` in this file.
+
+### This project's own conventions
+
+Everything a layer ships is generic by construction: it describes the
+stack the template assumed, not what this repo grew into. **Bytes
+outside every marker pair are yours and survive `kata apply`** — so
+project-specific conventions belong in a section of their own, outside
+the markers (conventionally at the end of the file; if a later layer
+appends its block below yours, no matter — kata only ever rewrites
+between its own markers). Same mechanism as the `.gitignore` /
+`.gitattributes` blocks.
+
+Write those conventions down there rather than leaving them in one
+agent's head, in commit archaeology, or in a README the agent will not
+read. What earns a line:
+
+- **Any layer default that does not hold here.** A layer states its
+  assumption flatly ("Hosting is the primary target", "these rules are
+  a placeholder to replace"). When the project has diverged, say so and
+  say why — the layer's text keeps asserting the opposite on every
+  apply, and an agent that only reads the blocks will act on it.
+- **Facts duplicated across files with no compiler in between** — an
+  address or a path that appears in code *and* in a rules/config file
+  that cannot import it, a timeout that has to stay inside another
+  timeout. List every copy, so the next edit finds them all.
+- **kata-shipped files this project deleted on purpose**, together with
+  the `once_applied = true` line in `.kata/applied.toml` that keeps
+  them deleted. Otherwise someone helpfully restores one.
+- **Shapes the runtime forces but no tool checks** — an export form a
+  platform requires, import specifiers that must (or must not) carry a
+  file extension, a directory whose contents are reachable by URL.
+- **Invariants that money or access rest on**, naming the file and line
+  that actually enforces them.
+- **Which language the code speaks versus what a user reads**, when the
+  two differ.
+
+A repo whose `AGENTS.md` is nothing but kata blocks is a repo where
+every agent re-derives all of that from scratch — and gets the layer
+defaults wrong the same way each time.
 <!-- kata:agents:base:end -->
 <!-- kata:agents:pnpm:begin -->
 ## pnpm / TypeScript layer (kata: pj-pnpm)
@@ -83,6 +280,37 @@ This block is owned by `yukimemi/pj-pnpm` and re-applied on every
 - `pnpm build` — `tsc -b && vite build` (or framework equivalent).
 - `pnpm lint` — ESLint on the whole tree.
 - `pnpm test` — Vitest run-once. `pnpm test:watch` for the loop.
+
+### CI
+
+- `.github/workflows/ci.yml` is kata-managed, rendered from this
+  layer's `ci.yml.tera`. Local edits are reverted on the next
+  `kata apply` — push fixes upstream, and put project-specific CI in
+  a separate workflow file.
+- One job, `check`, on `ubuntu-latest`: `pnpm install
+  --frozen-lockfile` → `pnpm lint` → `pnpm build` → `pnpm test`.
+  There is no separate `tsc -b` step because `build` already starts
+  with one; running the bundler too is what catches an import or a
+  `vite.config.ts` that type-checks but cannot be built.
+- Triggers are `pull_request`, `push` to `main`, and
+  `workflow_dispatch`. Concurrent runs on the same ref are cancelled.
+- **`check` is the status check to require for merge.** Add it to
+  `main`'s branch protection. With nothing required a PR is mergeable
+  the moment it opens, so an automated PR (`kata apply`, Renovate)
+  can land unreviewed — and GitHub refuses to arm auto-merge on an
+  already-mergeable PR, so the arming step in pj-base's
+  `kata-apply.yml` has nothing to wait on either.
+- Action versions are pins in `.kata/vars.toml` —
+  `actions.pnpm_action_setup` and `actions.setup_node` from this
+  layer, `actions.checkout` from pj-base. Never write a version into
+  the workflow. The `# renovate:` annotations that make the two pnpm
+  pins bumpable live upstream in `vars.pnpm.toml`, not in the merged
+  copy here, so a newer pin arrives via
+  `kata apply --reseed .kata/vars.toml`.
+- pnpm itself is set up with no `version:` input: `packageManager` in
+  `package.json` is the only place the pnpm version is declared, and
+  supplying both makes `pnpm/action-setup` fail with "Multiple
+  versions of pnpm specified" as soon as they drift.
 
 ### TypeScript
 
@@ -185,17 +413,88 @@ This block is owned by `yukimemi/pj-firebase` and re-applied on
 every `kata apply`. Edits go upstream to the template, not to
 this file.
 
-### Hosting
+### Deploy target: pick one, then write the choice down
 
-- **Firebase Hosting** is the primary target — `firebase deploy
-  --only hosting` from local, or the `Deploy to Firebase
-  Hosting` GitHub Actions workflow from `main`.
-- **Vercel** runs in parallel as a same-stack mirror so PR
-  previews work out of the box. Keep `vercel.json` and
-  `firebase.json`'s rewrites/headers in sync — both should
-  rewrite `**` → `/index.html` for SPA routing and emit
+This layer ships both halves — `firebase.json` for Firebase
+Hosting, `vercel.json` for Vercel — because which one a project
+ends up on depends on something the template cannot see: whether
+the app is static.
+
+- **Static front end, Firebase for data.** Firebase Hosting is
+  the target (`firebase deploy --only hosting` locally, or the
+  `Deploy to Firebase Hosting` workflow from `main`), and Vercel
+  runs in parallel as a same-stack mirror so PR previews work out
+  of the box. Keep `vercel.json` and `firebase.json`'s
+  rewrites/headers in sync — both should rewrite `**` →
+  `/index.html` for SPA routing and emit
   `Cross-Origin-Opener-Policy: same-origin-allow-popups`
   (Firebase Auth popup needs this).
+- **Any server-side code — an `api/` directory of Vercel
+  Functions, Next.js route handlers, an LLM call whose key must
+  not reach the browser — makes Vercel the only target that runs
+  the whole app.** Hosting serves static files; it cannot execute
+  a function, so a Hosting deploy publishes a UI whose every
+  server route fails. That is a fork in the road, not a
+  preference: once such a route exists the Hosting path is dead.
+
+On the Vercel-only path, make the choice stick rather than leave
+two half-live pipelines:
+
+- Delete `.github/workflows/deploy.yml`; the
+  `once_applied = true` entry it leaves in `.kata/applied.toml`
+  is what stops the next `kata apply` re-creating it.
+- Keep `firebase.json` / `.firebaserc` anyway — rules deploys
+  still need them (`firebase deploy --only
+  firestore:rules,storage`), Hosting config or not.
+- Put the env in the Vercel project (`vercel env ls`). The
+  GitHub secrets listed below feed the Hosting workflow only.
+- Record it in the project's own section, below the last
+  `kata:*:end`. This block goes on offering Hosting as an option
+  on every apply; the project section is where the answer lives.
+
+### Server routes on Vercel
+
+Only relevant on the Vercel path. The first two fail in ways that
+do not resemble their cause:
+
+- **Match the export form to what the runtime does with it.** The
+  Node runtime accepts three shapes, and one is a trap in a
+  codebase built on Web `Response`: a bare
+  `export default function handler(req, res)` is the *legacy Node
+  handler*, whose return value is discarded — build a `Response`
+  inside it and the client receives nothing. The Web-standard
+  shapes are named method exports (`export const POST = …`,
+  `export function GET(request)`) and a default export of an
+  object carrying a `fetch` method
+  (`export default { fetch(request) { … } }`). Prefer the method
+  exports: one file, one route, one verb per export.
+- **Under `"type": "module"`, relative specifiers in function code
+  carry `.js`** — `./_lib/http.js`, `../../shared/foo.js`, even
+  though the file on disk is `.ts`. That is the shape this stack
+  produces: the pnpm layer's `package.json` is ESM, and standalone
+  `api/*.ts` functions are transpiled per file rather than
+  bundled, so Node's ESM loader resolves the specifier verbatim
+  and refuses an extensionless one
+  (production-only `ERR_MODULE_NOT_FOUND`). Browser code under
+  `src/` stays extensionless because Vite bundles it, so one repo
+  runs both conventions. Framework route handlers that go through
+  a real bundler (Next.js) are exempt — check which side a route
+  is on before copying either rule.
+- A dev-time Vite plugin that mounts `api/` on the dev server is
+  worth its ~100 lines: `pnpm dev` becomes the whole app and the
+  Vercel CLI leaves the local loop. Note that it also masks both
+  mistakes above, since Vite bundles and invokes the handler
+  directly.
+- **`vercel.json` is co-owned, and the SPA rewrite is the half
+  that bites.** kata syncs `$schema`, `buildCommand`,
+  `outputDirectory`, `framework`, `rewrites` and `headers`
+  (`merge-json`, so only those keys). The shipped rewrite
+  excludes the whole `/api` boundary —
+  `/((?!api(?:/|$)).*)` — because a catch-all answers every
+  function route with `index.html`: a green deploy whose whole
+  API is gone. `regions`, `functions` (a
+  `maxDuration` raised for slow LLM calls, say) and anything
+  else the project adds are the project's, and survive applies.
 
 ### Rules
 
@@ -204,6 +503,11 @@ this file.
   schema before shipping. Verified-email is required at the
   baseline so Google sign-in's pre-verification flow is the
   default.
+- Both files are `when = "once"`, so kata never writes them
+  again. Once replaced they **are** the app's access control:
+  read a diff against them as a security change, and never
+  "restore the baseline" on the strength of the paragraph above
+  still describing one.
 - Push rules with `firebase deploy --only firestore:rules,storage`
   (or via a project-side `scripts/deploy-rules.ts` helper —
   kakeizu has one as a reference).
@@ -235,13 +539,22 @@ Allow ~1–2 min for IAM propagation before testing.
 
 - `.env.example` documents the `VITE_FIREBASE_*` surface. Copy
   to `.env`, fill in from the Firebase console.
-- The deploy workflow rewrites `.env` from secrets at build time
-  (Vite inlines envs at compile time, so the build container
-  needs them, not the runtime).
-- Required GitHub secrets:
+- The Hosting deploy workflow rewrites `.env` from secrets at
+  build time (Vite inlines envs at compile time, so the build
+  container needs them, not the runtime).
+- GitHub secrets required **on the Hosting path**:
   - `FIREBASE_SERVICE_ACCOUNT` — JSON for a service account
     with the `Firebase Hosting Admin` role.
   - `VITE_FIREBASE_*` — one secret per `.env.example` entry.
+- On the Vercel-only path neither is needed: the same names go in
+  the Vercel project's environment variables, and server-side
+  keys stay **un-prefixed** so they never reach the bundle.
+  `VITE_FIREBASE_*` are public by design — the rules are the
+  protection, not the obscurity of those values.
+
+The `projectId` note below points at `deploy.yml`; on the
+Vercel-only path that file is gone and the project id lives in
+`.firebaserc` plus whatever the app reads at runtime.
 
 ### projectId
 

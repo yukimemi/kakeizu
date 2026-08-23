@@ -1,0 +1,12 @@
+# pnpm 11 reads build-script policy from here, not from package.json.
+# esbuild's postinstall downloads the platform binary `vite build`
+# needs — required, or the build fails outright. core-js's postinstall
+# is a donation-nag print (safe to skip). The other three are
+# firebase-tools / firebase SDK transitives whose native builds are
+# optional accelerations, not required for the app or CLI to run.
+allowBuilds:
+  esbuild: true
+  core-js: false
+  '@firebase/util': false
+  protobufjs: false
+  re2: false
