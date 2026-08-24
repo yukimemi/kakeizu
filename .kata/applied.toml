@@ -1,15 +1,15 @@
 preset = "C:/Users/yukimemi/src/github.com/yukimemi/pj-presets/web-react-firebase.toml"
-applied_at = "2026-08-23T06:31:11.4264976Z"
+applied_at = "2026-08-24T03:35:51.338259377Z"
 
 [[templates]]
 source = "github.com/yukimemi/pj-base"
-rev = "c2fb1a99fb3b4beeef6d2411d7f669ea132b0a79"
-version = "0.16.0"
+rev = "d32d2b5417b0e999bdefd311c21faaee18f2f1aa"
+version = "0.18.0"
 
 [[templates]]
 source = "github.com/yukimemi/pj-pnpm"
-rev = "fb9f0a7598d5a3d2edff08128ea38cebe3881096"
-version = "0.2.0"
+rev = "00962d56f4ebc7918ec1b70faba72610514945d3"
+version = "0.3.0"
 
 [[templates]]
 source = "github.com/yukimemi/pj-react-web"
@@ -37,27 +37,28 @@ content_hash = "486c974de88903113ed99b4e643432b7050e88f1031276f5263e8da7b43fe11e
 content_hash = "6d380d1ecc2f882c2011429d548a6f3c774b74f0c757d884453e4667172acc2a"
 
 [files.".github/workflows/apm-bump.yml"]
-content_hash = "f1cf3615e0f5ff443860722da8d7f74530eaa37e755e65f4392a0c25cd83917e"
+content_hash = "0ac5ed2847ab6e1041e34209dcc2396a582722ea9537d03bd950e1db1851a4b7"
 
 [files.".github/workflows/ci.yml"]
-content_hash = "e66dac8f70ea4febe75fed117a7150032582ca7108188d64d3b4df650b61fe77"
+content_hash = "2860bd388a4b591beb34e390ed2ebacfc6025449fdb8f919a774907d555ecdc8"
 
 [files.".github/workflows/claude-review.yml"]
-content_hash = "b6b6c2bfe826aeb9a07023d216f5b9055e92429f1a95f729391aca0c9d107bde"
+content_hash = "4a8e47aabb3cdf2a59030d5194467022f0efb53bb1819d4495752020d10be773"
 
 [files.".github/workflows/claude.yml"]
-content_hash = "423b953531215e3d3bdb9ec60304ed0ea18681bb36c0cbf1e9bca3e2b6687d5f"
+content_hash = "c83b52d5f483fdec494028b932facf98018500ce757718cc2e3703328688f5ad"
 
 [files.".github/workflows/deploy.yml"]
 once_applied = true
 
 [files.".github/workflows/kata-apply.yml"]
-content_hash = "c70c39b08f0e914a44c1dc6c558b3ce2439933fbd64c51674fe64dbc640f02bc"
+content_hash = "7000353151b01b5d14cb8f56e314b1a25b020e22bdf5842dcaf5686efb59facb"
 
 [files.".gitignore"]
 content_hash = "99ce77ba843c5bee84182b768f18a501f6e76eef3731eb0e899997b33b7c8468"
 
 [files.".kata/vars.toml"]
+content_hash = "8e573305bc9b45b40e4c4c24c0da7728771a12d81c4c1631d6e35f25a189cf84"
 once_applied = true
 
 [files."AGENTS.md"]
