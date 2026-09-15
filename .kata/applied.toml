@@ -1,9 +1,9 @@
 preset = "C:/Users/yukimemi/src/github.com/yukimemi/pj-presets/web-react-firebase.toml"
-applied_at = "2026-08-24T03:35:51.338259377Z"
+applied_at = "2026-09-15T03:30:44.540080866Z"
 
 [[templates]]
 source = "github.com/yukimemi/pj-base"
-rev = "10cd49c09b95af8add4daf71c5151835821cb670"
+rev = "e5ad02c4f60ce83f12ffeb7537c5665367a50aa2"
 version = "0.18.0"
 
 [[templates]]
@@ -26,6 +26,9 @@ once_applied = true
 
 [files.".claude/skills/renri/SKILL.md"]
 once_applied = true
+
+[files.".editorconfig"]
+content_hash = "df3d6e27040e82c12677ac073ca9676cc92bffa2cb1b875bfe63d12b4dd1135b"
 
 [files.".env.example"]
 once_applied = true
